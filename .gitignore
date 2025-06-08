@@ -54,3 +54,23 @@ build-iPhoneSimulator/
 
 # Used by RuboCop. Remote config files pulled in from inherit_from directive.
 # .rubocop-https?--*
+
+# Ignore components directory in project root only
+# (this contains auto-generated/cloned ESP-IDF components)
+/components/
+
+# Arduino IDE files
+*.hex
+*.elf
+*.map
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
