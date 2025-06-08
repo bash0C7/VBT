@@ -133,8 +133,8 @@ def copy_source_components
 end
 
 desc "Initial setup: create components, clone R2P2-ESP32, copy picoruby-esp32, and build"
-task :setup do
-  puts "Starting VBT project setup..."
+task :init do
+  puts "Starting VBT project init..."
   setup_environment
   
   begin
