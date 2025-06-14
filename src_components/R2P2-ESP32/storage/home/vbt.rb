@@ -1,5 +1,42 @@
-# VBT Accelerometer and Velocity LED Display
-# Measures acceleration/velocity and displays on 5x5 LED matrix per specification
+# VBT LED Display - Memory Optimized for PicoRuby
+# Ultra minimal implementation to avoid out of memory errors
+
+# Round method for PicoRuby
+class Float
+  def round(digits = 0)
+    if digits == 0
+      if self >= 0
+        (self + 0.5).to_i
+      else
+        (self - 0.5).to_i
+      end
+    else
+      factor = 10.0 ** digits
+      ((self * factor) + (self >= 0 ? 0.5 : -0.5)).to_i / factor.to_f
+    end
+  end
+end
+
+puts "VBT Start"
+
+# Initialize I2C
+require 'i2c'
+i2c = I2C.new(
+  unit: :ESP32_I2C0,
+  frequency: 100_000,
+  sda_pin: 25,
+  scl_pin: 21
+)
+
+# Initialize LCD
+[0x38, 0x39, 0x14, 0x70, 0x54, 0x6c].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
+[0x38, 0x0c, 0x01].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
+
+# Initialize MPU6886
+require 'mpu6886'
+mpu = MPU6886.new(i2c)
+mpu.accel_range = MPU6886::ACCEL_RANGE_8G
+
 require 'rmt'
 
 class WS2812
@@ -34,153 +71,117 @@ class WS2812
   end
 end
 
+# Initialize WS2812 - GPIO27 for ATOM Matrix
+#require 'WS2812'
+require 'rmt'
 
-# Round method for PicoRuby compatibility
-class Float
-  def round(digits = 0)
-    if digits == 0
-      if self >= 0
-        (self + 0.5).to_i
-      else
-        (self - 0.5).to_i
-      end
+class WS2812
+  def initialize(pin)
+    @rmt = RMT.new(
+      pin,
+      t0h_ns: 350,
+      t0l_ns: 800,
+      t1h_ns: 700,
+      t1l_ns: 600,
+      reset_ns: 60000)
+  end
+
+  # ex. show(0xff0000, 0x00ff00, 0x0000ff)  # Hexadecimal RGB values
+  # or show([255, 0, 0], [0, 255, 0], [0, 0, 255]) # Array of RGB values
+  def show(*colors)
+    bytes = []
+    colors.each do |color|
+      r, g, b = parse_color(color)
+      bytes << g << r << b
+    end
+
+    @rmt.write(bytes)
+  end
+
+  def parse_color(color)
+    if color.is_a?(Integer)
+      [(color>>16)&0xFF, (color>>8)&0xFF, color&0xFF]
     else
-      factor = 10.0 ** digits
-      ((self * factor) + (self >= 0 ? 0.5 : -0.5)).to_i / factor.to_f
+      color
     end
   end
 end
 
-# Square root implementation for PicoRuby
-def sqrt(x)
-  return 0.0 if x <= 0.0
-  
-  # Newton's method for square root
-  guess = x / 2.0
-  3.times do
-    guess = (guess + x / guess) / 2.0
-  end
-  guess
-end
-
-puts "VBT System Starting..."
-
-# Initialize I2C for MPU6886
-require 'i2c'
-i2c = I2C.new(
-  unit: :ESP32_I2C0,
-  frequency: 100_000,
-  sda_pin: 25,
-  scl_pin: 21,
-  timeout: 2000
-)
-
-# Initialize MPU6886 accelerometer
-require 'mpu6886'
-mpu = MPU6886.new(i2c)
-mpu.accel_range = MPU6886::ACCEL_RANGE_8G
-
-# Initialize WS2812 LED matrix (ATOM Matrix uses GPIO27)
-#require 'WS2812'
 leds = WS2812.new(27)
 
-# LED Colors from specification
-COLOR_ORANGE    = 0xFF8000  # Acceleration display
-COLOR_SKY_BLUE  = 0x00BFFF  # Velocity display  
-COLOR_CYAN      = 0x00FFFF  # Set number (idle state)
-COLOR_OFF       = 0x000000  # LED off
+# Pre-allocate LED array - REUSE to avoid memory allocation
+led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-# VBT measurement variables
-current_velocity = 0.0
-max_acceleration = 0.0
-max_velocity = 0.0
-last_time = 0
+# Colors
+orange = 0xFF8000
+skyblue = 0x00BFFF
+cyan = 0x00FFFF
 
-# Configuration constants from specification
-MAX_ACCEL_RANGE = 40.0    # m/s² display range
-MAX_VELOCITY_RANGE = 2.0  # m/s display range
-GRAVITY = 9.81           # m/s²
+# Variables - use simple types
+max_accel = 0.0
+max_vel = 0.0
+current_vel = 0.0
 
-puts "Initialization complete. Starting measurement loop..."
+puts "Loop start"
 
-# Clear all LEDs initially
-led_array = Array.new(25, COLOR_OFF)
-leds.show(*led_array)
-
-# Main measurement loop - 200ms interval
+# Main loop - memory optimized
 loop do
-  current_time = Time.now.to_f * 1000  # milliseconds
+  # Get acceleration
+  acc = mpu.acceleration
   
-  # Calculate time delta for velocity integration
-  if last_time > 0
-    delta_time = (current_time - last_time) / 1000.0  # seconds
-  else
-    delta_time = 0.2  # Initial 200ms
+  # Simple magnitude calculation (avoid sqrt to save memory)
+  acc_mag = acc[:x] + acc[:y] + acc[:z]
+  acc_mag = acc_mag > 0 ? acc_mag : -acc_mag  # abs value
+  
+  # Remove gravity estimate (1.0G)
+  net_acc = acc_mag - 1.0
+  net_acc = 0.0 if net_acc < 0.0
+  
+  # Simple velocity integration
+  current_vel = current_vel + net_acc * 0.2  # 200ms = 0.2s
+  
+  # Update maximums
+  max_accel = net_acc if net_acc > max_accel
+  max_vel = current_vel if current_vel > max_vel
+  
+  # Clear LED array (reuse existing array)
+  i = 0
+  while i < 25
+    led_data[i] = 0
+    i = i + 1
   end
-  last_time = current_time
   
-  # Get 3-axis acceleration data
-  accel_data = mpu.acceleration
-  acc_x = accel_data[:x] * GRAVITY  # Convert to m/s²
-  acc_y = accel_data[:y] * GRAVITY
-  acc_z = accel_data[:z] * GRAVITY
-  
-  # Calculate 3-axis combined acceleration magnitude
-  total_accel = sqrt(acc_x * acc_x + acc_y * acc_y + acc_z * acc_z)
-  
-  # Remove gravity to get net acceleration
-  current_acceleration = total_accel - GRAVITY
-  current_acceleration = 0.0 if current_acceleration < 0.0
-  
-  # Integrate acceleration to get velocity (simple integration)
-  current_velocity += current_acceleration * delta_time
-  
-  # Update maximum values
-  max_acceleration = current_acceleration if current_acceleration > max_acceleration
-  max_velocity = current_velocity if current_velocity > max_velocity
-  
-  # Create LED array (5x5 = 25 LEDs)
-  led_array = Array.new(25, COLOR_OFF)
-  
-  # Display acceleration on rows 0-1 (orange LEDs)
-  accel_leds = ((max_acceleration / MAX_ACCEL_RANGE) * 10).to_i
+  # Display acceleration (rows 0-1, orange)
+  accel_leds = (max_accel * 2.5).to_i  # Scale to 0-10 range
   accel_leds = 10 if accel_leds > 10
-  accel_leds = 0 if accel_leds < 0
   
-  (0...accel_leds).each do |i|
-    row = i / 5
-    col = i % 5
-    led_index = row * 5 + col
-    led_array[led_index] = COLOR_ORANGE
+  i = 0
+  while i < accel_leds
+    led_data[i] = orange
+    i = i + 1
   end
   
-  # Display velocity on rows 2-3 (sky blue LEDs)  
-  velocity_leds = ((max_velocity / MAX_VELOCITY_RANGE) * 10).to_i
-  velocity_leds = 10 if velocity_leds > 10
-  velocity_leds = 0 if velocity_leds < 0
+  # Display velocity (rows 2-3, sky blue)
+  vel_leds = (max_vel * 5.0).to_i  # Scale to 0-10 range  
+  vel_leds = 10 if vel_leds > 10
   
-  (0...velocity_leds).each do |i|
-    row = 2 + (i / 5)  # Start from row 2
-    col = i % 5
-    led_index = row * 5 + col
-    led_array[led_index] = COLOR_SKY_BLUE
+  i = 0
+  while i < vel_leds
+    led_data[10 + i] = skyblue  # Start from index 10 (row 2)
+    i = i + 1
   end
   
-  # Display set number on row 4 (cyan color for idle state)
-  # Show binary representation of set number 1 (always 1 for this simple version)
-  set_number = 1
-  (0...5).each do |i|
-    bit_value = (set_number >> i) & 1
-    led_index = 4 * 5 + (4 - i)  # Row 4, right to left
-    led_array[led_index] = bit_value > 0 ? COLOR_CYAN : COLOR_OFF
-  end
+  # Set number display (row 4, rightmost LED for set 1)
+  led_data[24] = cyan  # Bottom right LED for set number 1
   
-  # Update LED display
-  leds.show(*led_array)
+  # Update LEDs
+  leds.show(*led_data)
   
-  # Debug output
-  puts "Accel: #{current_acceleration.round(2)}m/s² | Vel: #{current_velocity.round(2)}m/s | Max A: #{max_acceleration.round(2)} | Max V: #{max_velocity.round(2)}"
-  
-  # 200ms delay
-  sleep_ms 200
+  # Minimal debug output
+  debug_string = "A:#{max_accel.round(1)} V:#{max_vel.round(1)}"
+  puts debug_string
+  debug_string.bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+i2c.write(0x3e, 0, 0x80|0x40)
+
+  sleep_ms 250
 end
