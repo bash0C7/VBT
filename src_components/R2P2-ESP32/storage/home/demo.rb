@@ -95,13 +95,13 @@ loop do
   
   w.show(l)
   
-  # LCD
+  # LCD - 3-axis display
   c += 1
   if c >= 20
     i.write(0x3e,0,0x01)
     sleep_ms 1
     
-    # X display
+    # Line 1: X±nY±n (compact format)
     i.write(0x3e,0x40,88)  # 'X'
     if x >= 0
       i.write(0x3e,0x40,43)  # '+'
@@ -110,11 +110,8 @@ loop do
       i.write(0x3e,0x40,45)  # '-'
       val = (-x) < 10 ? (-x) : 9
     end
-    i.write(0x3e,0x40,48+val)  # digit
+    i.write(0x3e,0x40,48+val)  # X digit
     
-    i.write(0x3e,0,0x80|0x40)
-    
-    # Y display  
     i.write(0x3e,0x40,89)  # 'Y'
     if y >= 0
       i.write(0x3e,0x40,43)  # '+'
@@ -123,7 +120,17 @@ loop do
       i.write(0x3e,0x40,45)  # '-'
       val = (-y) < 10 ? (-y) : 9
     end
-    i.write(0x3e,0x40,48+val)  # digit
+    i.write(0x3e,0x40,48+val)  # Y digit
+    
+    # Line 2: T:n (compact tilt display)
+    i.write(0x3e,0,0x80|0x40)
+    i.write(0x3e,0x40,84)  # 'T'
+    i.write(0x3e,0x40,58)  # ':'
+    
+    # Normalize tilt to 0-9 range  
+    tilt_val = t / 200  # Scale down from squared values
+    tilt_val = tilt_val > 9 ? 9 : tilt_val
+    i.write(0x3e,0x40,48+tilt_val)  # Tilt digit
     
     c = 0
   end
