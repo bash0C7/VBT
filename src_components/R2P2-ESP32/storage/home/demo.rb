@@ -18,7 +18,14 @@ class WS2812
   end
   def show(colors)
     b = []
-    colors.each { |x| r=((x>>16)&0xFF)>>3; g=((x>>8)&0xFF)>>3; b<<g<<r<<(x&0xFF)>>3 }
+    colors.each do |x|
+      r = ((x >> 16) & 0xFF) >> 3
+      g = ((x >> 8) & 0xFF) >> 3
+      blue = (x & 0xFF) >> 3
+      b << g
+      b << r  
+      b << blue
+    end
     @rmt.write(b)
   end
 end
@@ -93,9 +100,31 @@ loop do
   if c >= 20
     i.write(0x3e,0,0x01)
     sleep_ms 1
-    [88,x>=0?43:45,x<0?48+(-x<10?-x:9):48+(x<10?x:9)].each{|b|i.write(0x3e,0x40,b)}
+    
+    # X display
+    i.write(0x3e,0x40,88)  # 'X'
+    if x >= 0
+      i.write(0x3e,0x40,43)  # '+'
+      val = x < 10 ? x : 9
+    else
+      i.write(0x3e,0x40,45)  # '-'
+      val = (-x) < 10 ? (-x) : 9
+    end
+    i.write(0x3e,0x40,48+val)  # digit
+    
     i.write(0x3e,0,0x80|0x40)
-    [89,y>=0?43:45,y<0?48+(-y<10?-y:9):48+(y<10?y:9)].each{|b|i.write(0x3e,0x40,b)}
+    
+    # Y display  
+    i.write(0x3e,0x40,89)  # 'Y'
+    if y >= 0
+      i.write(0x3e,0x40,43)  # '+'
+      val = y < 10 ? y : 9
+    else
+      i.write(0x3e,0x40,45)  # '-'
+      val = (-y) < 10 ? (-y) : 9
+    end
+    i.write(0x3e,0x40,48+val)  # digit
+    
     c = 0
   end
   
