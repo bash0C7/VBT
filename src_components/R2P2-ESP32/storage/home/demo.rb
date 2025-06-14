@@ -1,5 +1,6 @@
-# Ruby Gemstone LED Demo - Tilt-responsive with Motion Shift
-# Beautiful ruby pattern that shifts with motion and changes color with tilt
+# Ruby Gemstone LED Demo with LCD Debug Display
+# Tilt-responsive ruby pattern with real-time sensor data on LCD
+# Neutral: USB port down, facing LED matrix while standing
 
 # Round method for PicoRuby
 class Float
@@ -70,6 +71,10 @@ end
 
 leds = WS2812.new(27, 0.125)
 
+# Initialize LCD with provided code
+[0x38, 0x39, 0x14, 0x70, 0x54, 0x6c].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
+[0x38, 0x0c, 0x01].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
+
 # Pre-allocate LED array - REUSE to avoid memory allocation
 led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
@@ -119,27 +124,58 @@ def coord_to_index(x, y)
   y * 5 + x
 end
 
+# Helper function to update LCD display
+def update_lcd_display(i2c, rel_x, rel_y, tilt_magnitude)
+  # Clear display and go to home position
+  i2c.write(0x3e, 0, 0x01)
+  sleep_ms 2
+  
+  # Line 1: X and Y relative values
+  line1 = "X:#{rel_x.round(2)} Y:#{rel_y.round(2)}"
+  line1.bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+  
+  # Move to second line
+  i2c.write(0x3e, 0, 0x80|0x40)
+  
+  # Line 2: Tilt magnitude
+  line2 = "Tilt:#{tilt_magnitude.round(3)}"
+  line2.bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+end
+
 # Calibrate neutral position
-puts "Calibrating neutral position..."
+# USB port down, facing LED matrix while standing
+sleep_ms 1000  # Wait for stable position
+
 neutral_x = 0.0
 neutral_y = 0.0
 neutral_z = 0.0
 
-10.times do
+# Display calibration message
+"Calibrating".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+i2c.write(0x3e, 0, 0x80|0x40)
+"Hold steady".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+
+15.times do
   acc = mpu.acceleration
   neutral_x = neutral_x + acc[:x]
   neutral_y = neutral_y + acc[:y] 
   neutral_z = neutral_z + acc[:z]
-  sleep_ms 50
+  sleep_ms 100
 end
 
-neutral_x = neutral_x / 10.0
-neutral_y = neutral_y / 10.0
-neutral_z = neutral_z / 10.0
+neutral_x = neutral_x / 15.0
+neutral_y = neutral_y / 15.0
+neutral_z = neutral_z / 15.0
 
-puts "Ready!"
+# Display ready message
+i2c.write(0x3e, 0, 0x01)
+sleep_ms 2
+"Ready!".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+sleep_ms 1000
 
-# Main loop
+# Main loop with LCD update counter
+lcd_update_counter = 0
+
 loop do
   # Get current acceleration
   acc = mpu.acceleration
@@ -192,6 +228,13 @@ loop do
   
   # Update LEDs
   leds.show(*led_data)
+  
+  # Update LCD every 5 cycles (500ms) to avoid flicker
+  lcd_update_counter = lcd_update_counter + 1
+  if lcd_update_counter >= 5
+    update_lcd_display(i2c, rel_x, rel_y, tilt_magnitude)
+    lcd_update_counter = 0
+  end
   
   sleep_ms 100
 end
