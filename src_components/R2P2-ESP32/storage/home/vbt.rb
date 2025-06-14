@@ -1,15 +1,12 @@
-# VBT LED Display - Memory Optimized for PicoRuby
-# Ultra minimal implementation to avoid out of memory errors
+# VBT LED Display - Stabilized Implementation for PicoRuby
+# Fixed acceleration calculation, gravity calibration, and noise filtering
 
 # Round method for PicoRuby
 class Float
   def round(digits = 0)
     if digits == 0
-      if self >= 0
-        (self + 0.5).to_i
-      else
-        (self - 0.5).to_i
-      end
+      return (self + 0.5).to_i if self >= 0
+      (self - 0.5).to_i
     else
       factor = 10.0 ** digits
       ((self * factor) + (self >= 0 ? 0.5 : -0.5)).to_i / factor.to_f
@@ -26,7 +23,8 @@ i2c = I2C.new(
   scl_pin: 21
 )
 
-puts "VBT Start"
+puts "VBT Stabilized Start"
+
 # Initialize LCD
 [0x38, 0x39, 0x14, 0x70, 0x54, 0x6c].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
 [0x38, 0x0c, 0x01].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
@@ -36,8 +34,7 @@ require 'mpu6886'
 mpu = MPU6886.new(i2c)
 mpu.accel_range = MPU6886::ACCEL_RANGE_8G
 
-# Initialize WS2812 - GPIO27 for ATOM Matrix
-#require 'WS2812'
+# Initialize WS2812 LED
 require 'rmt'
 
 class WS2812
@@ -51,122 +48,174 @@ class WS2812
       reset_ns: 60000)
   end
 
-  # ex. show(0xff0000, 0x00ff00, 0x0000ff)  # Hexadecimal RGB values
-  # or show([255, 0, 0], [0, 255, 0], [0, 0, 255]) # Array of RGB values
   def show(*colors)
     bytes = []
     colors.each do |color|
       r, g, b = parse_color(color)
       bytes << g << r << b
     end
-
     @rmt.write(bytes)
   end
 
   def parse_color(color)
-    if color.is_a?(Integer)
-      [(color>>16)&0xFF, (color>>8)&0xFF, color&0xFF]
-    else
-      color
-    end
+    return [(color>>16)&0xFF, (color>>8)&0xFF, color&0xFF] if color.is_a?(Integer)
+    color
   end
 end
+
 leds = WS2812.new(27)
 
-# Pre-allocate LED array - REUSE to avoid memory allocation
-led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+# Pre-allocated LED array (25 LEDs)
+led_data = Array.new(25, 0)
 
-# Colors - Low brightness for eye comfort
-orange = 0x201000    # Was 0xFF8000, now 1/8 brightness
-skyblue = 0x001820   # Was 0x00BFFF, now 1/8 brightness  
-cyan = 0x002020      # Was 0x00FFFF, now 1/8 brightness
+# Colors (low brightness)
+ORANGE = 0x201000
+SKYBLUE = 0x001820  
+CYAN = 0x002020
 
-# Variables - use simple types
+# Configuration constants
+MOTION_THRESHOLD = 1.5    # m/s² - motion detection threshold
+DEADBAND_THRESHOLD = 0.3  # m/s² - noise elimination threshold
+LOWPASS_ALPHA = 0.8       # Low-pass filter coefficient (0.0-1.0)
+CALIBRATION_SAMPLES = 20  # Number of samples for gravity calibration
+
+# State variables
+gravity_baseline = 0.0
+filtered_accel = 0.0
 max_accel = 0.0
 max_vel = 0.0
 current_vel = 0.0
+motion_detected = false
+prev_display_accel = 0
+prev_display_vel = 0
+last_change_time = Time.now.to_f * 1000
+auto_dim_timeout = 3000
 
-# Auto-dimming variables
-prev_max_accel = 0.0
-prev_max_vel = 0.0
-last_change_time = Time.now.to_f * 1000  # milliseconds
-auto_dim_timeout = 2000  # 2 seconds in milliseconds
+puts "Calibrating gravity baseline..."
 
-puts "Loop start"
-
-# Main loop - memory optimized
-loop do
-  current_time = Time.now.to_f * 1000  # milliseconds
-  
-  # Get acceleration
+# Gravity calibration - measure baseline acceleration when stationary
+gravity_sum = 0.0
+CALIBRATION_SAMPLES.times do |i|
   acc = mpu.acceleration
+  # Correct 3-axis magnitude calculation
+  magnitude = (acc[:x] * acc[:x] + acc[:y] * acc[:y] + acc[:z] * acc[:z]) ** 0.5
+  gravity_sum += magnitude
+  puts "Cal #{i+1}/#{CALIBRATION_SAMPLES}: #{magnitude.round(3)}"
+  sleep_ms 100
+end
+
+gravity_baseline = gravity_sum / CALIBRATION_SAMPLES
+puts "Gravity baseline: #{gravity_baseline.round(3)}G"
+
+# Helper function for acceleration processing
+def process_acceleration(acc, gravity_baseline, prev_filtered)
+  # Calculate correct 3-axis magnitude
+  magnitude = (acc[:x] * acc[:x] + acc[:y] * acc[:y] + acc[:z] * acc[:z]) ** 0.5
   
-  # Simple magnitude calculation (avoid sqrt to save memory)
-  acc_mag = acc[:x] + acc[:y] + acc[:z]
-  acc_mag = acc_mag > 0 ? acc_mag : -acc_mag  # abs value
+  # Remove gravity to get dynamic acceleration
+  net_accel = magnitude - gravity_baseline
   
-  # Remove gravity estimate (1.0G)
-  net_acc = acc_mag - 1.0
-  net_acc = 0.0 if net_acc < 0.0
+  # Apply deadband to eliminate noise
+  net_accel = 0.0 if net_accel.abs < DEADBAND_THRESHOLD
   
-  # Simple velocity integration
-  current_vel = current_vel + net_acc * 0.2  # 200ms = 0.2s
+  # Apply low-pass filter to smooth rapid changes
+  filtered = prev_filtered * LOWPASS_ALPHA + net_accel * (1.0 - LOWPASS_ALPHA)
   
-  # Update maximums
-  max_accel = net_acc if net_acc > max_accel
-  max_vel = current_vel if current_vel > max_vel
+  # Ensure positive values only
+  filtered = 0.0 if filtered < 0.0
   
-  # Check if values changed for auto-dimming
-  if max_accel != prev_max_accel || max_vel != prev_max_vel
-    last_change_time = current_time
-    prev_max_accel = max_accel
-    prev_max_vel = max_vel
+  filtered
+end
+
+# Helper function for motion detection
+def detect_motion(accel, current_motion, threshold)
+  if accel >= threshold
+    return true unless current_motion  # Start of new motion
+  elsif accel < threshold * 0.5  # Hysteresis to prevent flickering
+    return false if current_motion   # End of motion
   end
+  current_motion  # Keep current state
+end
+
+puts "Starting measurement loop..."
+
+# Main loop - stabilized and optimized
+loop do
+  current_time = Time.now.to_f * 1000
   
-  # Clear LED array (reuse existing array)
-  i = 0
-  while i < 25
-    led_data[i] = 0
-    i = i + 1
-  end
+  # Read and process sensor data
+  acc = mpu.acceleration
+  filtered_accel = process_acceleration(acc, gravity_baseline, filtered_accel)
   
-  # Check if 5 seconds passed without value changes (auto-dimming)
-  if current_time - last_change_time > auto_dim_timeout
-    # Keep LEDs off - already cleared above
-    puts "Auto-dimmed"
+  # Motion detection with hysteresis
+  prev_motion = motion_detected
+  motion_detected = detect_motion(filtered_accel, motion_detected, MOTION_THRESHOLD)
+  
+  # Convert to m/s² for velocity integration and display
+  accel_ms2 = filtered_accel * 9.81
+  
+  # Velocity integration only during motion
+  if motion_detected
+    current_vel += accel_ms2 * 0.2  # 200ms integration period
   else
-    # Display acceleration (rows 0-1, orange)
-    accel_leds = (max_accel * 2.5).to_i  # Scale to 0-10 range
-    accel_leds = 10 if accel_leds > 10
-    
-    i = 0
-    while i < accel_leds
-      led_data[i] = orange
-      i = i + 1
-    end
-    
-    # Display velocity (rows 2-3, sky blue)
-    vel_leds = (max_vel * 5.0).to_i  # Scale to 0-10 range  
-    vel_leds = 10 if vel_leds > 10
-    
-    i = 0
-    while i < vel_leds
-      led_data[10 + i] = skyblue  # Start from index 10 (row 2)
-      i = i + 1
-    end
-    
-    # Set number display (row 4, rightmost LED for set 1)
-    led_data[24] = cyan  # Bottom right LED for set number 1
-    
-    # Minimal debug output
-    debug_string = "#{max_accel.round(1)},#{max_vel.round(1)}"
-    puts debug_string
-    debug_string.bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
-    #i2c.write(0x3e, 0, 0x80|0x40)
+    current_vel *= 0.95  # Gradual decay when stationary
   end
   
-  # Update LEDs (always needed whether dimmed or not)
-  leds.show(*led_data)
+  # Update maximums only during significant motion
+  if filtered_accel >= MOTION_THRESHOLD
+    max_accel = accel_ms2 if accel_ms2 > max_accel
+    max_vel = current_vel if current_vel > max_vel
+  end
+  
+  # Calculate display values (LED count 0-10)
+  display_accel = [(max_accel * 0.25).to_i, 10].min  # Scale for 40 m/s² max
+  display_vel = [(max_vel * 5.0).to_i, 10].min       # Scale for 2 m/s max
+  
+  # Check if display values changed
+  display_changed = (display_accel != prev_display_accel) || (display_vel != prev_display_vel)
+  motion_state_changed = (motion_detected != prev_motion)
+  
+  # Reset change timer if values or motion state changed
+  if display_changed || motion_state_changed
+    last_change_time = current_time
+    prev_display_accel = display_accel
+    prev_display_vel = display_vel
+  end
+  
+  # Auto-dimming check
+  auto_dimmed = (current_time - last_change_time) > auto_dim_timeout
+  
+  # Update LEDs only when necessary
+  if display_changed || motion_state_changed || auto_dimmed
+    led_data.fill(0)
+    
+    unless auto_dimmed
+      # Acceleration LEDs (rows 0-1, orange)
+      display_accel.times { |idx| led_data[idx] = ORANGE }
+      
+      # Velocity LEDs (rows 2-3, sky blue)
+      display_vel.times { |idx| led_data[10 + idx] = SKYBLUE }
+      
+      # Set indicator (cyan, blinking during motion)
+      if motion_detected && ((current_time / 500).to_i % 2 == 0)
+        led_data[24] = CYAN
+      elsif !motion_detected
+        led_data[24] = CYAN
+      end
+    end
+    
+    leds.show(*led_data)
+  end
+  
+  # Debug output - reduced frequency and cleaner format
+  if (current_time.to_i / 1000) % 2 == 0 && (current_time.to_i % 1000) < 200
+    status = motion_detected ? "MOV" : "STA"
+    puts "#{status} A:#{max_accel.round(1)} V:#{max_vel.round(1)}"
+    
+    # LCD display - show current motion state and values
+    lcd_text = "#{status} #{max_accel.round(1)}m/s²"
+    lcd_text.bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+  end
   
   sleep_ms 200
 end
