@@ -1,5 +1,5 @@
-# Ruby Gemstone LED Demo - Memory Optimized
-# Minimal memory usage while preserving visual effects
+# Ruby Gemstone Demo - Ultra Memory Optimized
+# Minimal memory footprint for stable operation
 
 # Initialize I2C
 require 'i2c'
@@ -15,7 +15,7 @@ require 'mpu6886'
 mpu = MPU6886.new(i2c)
 mpu.accel_range = MPU6886::ACCEL_RANGE_4G
 
-# Initialize WS2812 - GPIO27 for ATOM Matrix
+# Initialize WS2812
 require 'rmt'
 
 class WS2812
@@ -32,15 +32,9 @@ class WS2812
   def show(*colors)
     bytes = []
     colors.each do |color|
-      if color.is_a?(Integer)
-        r = ((color>>16)&0xFF) >> 3  # 1/8 brightness
-        g = ((color>>8)&0xFF) >> 3
-        b = (color&0xFF) >> 3
-      else
-        r = color[0] >> 3
-        g = color[1] >> 3  
-        b = color[2] >> 3
-      end
+      r = ((color>>16)&0xFF) >> 3
+      g = ((color>>8)&0xFF) >> 3
+      b = (color&0xFF) >> 3
       bytes << g << r << b
     end
     @rmt.write(bytes)
@@ -49,103 +43,85 @@ end
 
 leds = WS2812.new(27)
 
-# Initialize LCD
+# Initialize LCD - minimal
 [0x38, 0x39, 0x14, 0x70, 0x54, 0x6c].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
 [0x38, 0x0c, 0x01].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
 
-# Startup instructions
-"USB down,".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
-i2c.write(0x3e, 0, 0x80|0x40)  # Move to line 2
-"face LED".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+# Simple startup - avoid string operations
+i2c.write(0x3e, 0x40, 82)  # 'R'
+i2c.write(0x3e, 0x40, 101) # 'e'
+i2c.write(0x3e, 0x40, 97)  # 'a'
+i2c.write(0x3e, 0x40, 100) # 'd'
+i2c.write(0x3e, 0x40, 121) # 'y'
+sleep_ms 3000  # 3 second wait
 
-# 3 second countdown
-sleep_ms 1000
-i2c.write(0x3e, 0, 0x01)
-sleep_ms 2
-"3...".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
-sleep_ms 1000
-i2c.write(0x3e, 0, 0x01)
-sleep_ms 2
-"2...".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
-sleep_ms 1000
-i2c.write(0x3e, 0, 0x01)
-sleep_ms 2
-"1...".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
-sleep_ms 1000
-
-# Pre-allocated arrays - REUSE ONLY
+# LED array - pre-allocated
 led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-# Ruby pattern as simple array
-ruby_pos = [1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13, 17]  # Pre-calculated positions
+# Ruby positions - simplified
+ruby = [1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13, 17]
 
-# Color constants - avoid calculation
+# Colors
 red = 0xFF0000
-pink = 0xFF4080  
+pink = 0xFF4080
 purple = 0x8040FF
 
-# Calibration
-neutral_x = 0
-neutral_y = 0
-
-"Calibrating".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
-
-# Quick calibration - reduce iterations
-sum_x = 0
-sum_y = 0
-8.times do
-  acc = mpu.acceleration
-  sum_x = sum_x + (acc[:x] * 100).to_i  # Convert to integer
-  sum_y = sum_y + (acc[:y] * 100).to_i
-  sleep_ms 50
-end
-neutral_x = sum_x / 8
-neutral_y = sum_y / 8
-
-# Ready message
+# Calibration - minimal
 i2c.write(0x3e, 0, 0x01)
 sleep_ms 2
-"Ready!".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+i2c.write(0x3e, 0x40, 67)  # 'C'
+i2c.write(0x3e, 0x40, 97)  # 'a'
+i2c.write(0x3e, 0x40, 108) # 'l'
 
-# Main variables
+sum_x = 0
+sum_y = 0
+5.times do
+  acc = mpu.acceleration
+  sum_x = sum_x + (acc[:x] * 100).to_i
+  sum_y = sum_y + (acc[:y] * 100).to_i
+  sleep_ms 200
+end
+neutral_x = sum_x / 5
+neutral_y = sum_y / 5
+
+# Ready
+i2c.write(0x3e, 0, 0x01)
+sleep_ms 2
+i2c.write(0x3e, 0x40, 79)  # 'O'
+i2c.write(0x3e, 0x40, 75)  # 'K'
+
+# Main loop variables
 counter = 0
 
-# Main loop - ultra simplified
+# Main loop
 loop do
-  # Get sensor data as integers
   acc = mpu.acceleration
   rel_x = (acc[:x] * 100).to_i - neutral_x
   rel_y = (acc[:y] * 100).to_i - neutral_y
   
-  # Simple tilt calculation using integers
+  # Color selection
   tilt_sq = rel_x * rel_x + rel_y * rel_y
-  
-  # Color selection - simple threshold
   color = red
-  if tilt_sq > 625   # ~0.25 squared * 10000
-    color = pink
-  end
-  if tilt_sq > 2500  # ~0.5 squared * 10000
-    color = purple
-  end
+  color = pink if tilt_sq > 625
+  color = purple if tilt_sq > 2500
   
-  # Position shift - dramatic movement
-  shift_x = rel_x / 15  # More sensitive movement
-  shift_y = rel_y / -15  # Invert Y for natural feel
+  # Movement calculation  
+  shift_x = rel_x / 15
+  shift_y = rel_y / -15
   shift_x = 4 if shift_x > 4
   shift_x = -4 if shift_x < -4
   shift_y = 4 if shift_y > 4
   shift_y = -4 if shift_y < -4
   
-  # Clear LEDs - direct loop
+  # Clear LEDs
   i = 0
   while i < 25
     led_data[i] = 0
     i = i + 1
   end
   
-  # Apply pattern - simplified positioning
-  ruby_pos.each do |pos|
+  # Set ruby LEDs
+  ruby.each do |pos|
     col = pos % 5
     row = pos / 5
     new_col = col + shift_x
@@ -156,47 +132,50 @@ loop do
     end
   end
   
-  # Update display
   leds.show(*led_data)
   
-  # LCD update every 20 cycles (1 second at 50ms)
+  # Simple LCD update
   counter = counter + 1
   if counter >= 20
     i2c.write(0x3e, 0, 0x01)
     sleep_ms 1
     
-    # Simple display - avoid string operations
+    # X value
+    i2c.write(0x3e, 0x40, 88)  # 'X'
     if rel_x >= 0
-      "X:+".bytes.each { |c| i2c.write(0x3e, 0x40, c) }
+      i2c.write(0x3e, 0x40, 43)  # '+'
+      val = rel_x
     else
-      "X:-".bytes.each { |c| i2c.write(0x3e, 0x40, c) }
-      rel_x = -rel_x
+      i2c.write(0x3e, 0x40, 45)  # '-'
+      val = -rel_x
     end
     
-    # Simple number display
-    if rel_x < 10
-      i2c.write(0x3e, 0x40, 48 + rel_x)  # ASCII '0' + digit
+    if val < 10
+      i2c.write(0x3e, 0x40, 48 + val)
     else
-      i2c.write(0x3e, 0x40, 35)  # '#' for large values
+      i2c.write(0x3e, 0x40, 35)  # '#'
     end
     
-    i2c.write(0x3e, 0, 0x80|0x40)  # Move to line 2
+    i2c.write(0x3e, 0, 0x80|0x40)
     
+    # Y value
+    i2c.write(0x3e, 0x40, 89)  # 'Y'
     if rel_y >= 0
-      "Y:+".bytes.each { |c| i2c.write(0x3e, 0x40, c) }
+      i2c.write(0x3e, 0x40, 43)  # '+'
+      val = rel_y
     else
-      "Y:-".bytes.each { |c| i2c.write(0x3e, 0x40, c) }
-      rel_y = -rel_y
+      i2c.write(0x3e, 0x40, 45)  # '-'
+      val = -rel_y
     end
     
-    if rel_y < 10
-      i2c.write(0x3e, 0x40, 48 + rel_y)
+    if val < 10
+      i2c.write(0x3e, 0x40, 48 + val)
     else
-      i2c.write(0x3e, 0x40, 35)
+      i2c.write(0x3e, 0x40, 35)  # '#'
     end
     
     counter = 0
   end
   
-  sleep_ms 100
+  sleep_ms 50
 end
