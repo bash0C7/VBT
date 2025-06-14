@@ -159,7 +159,7 @@ loop do
     led_data[24] = cyan  # Bottom right LED for set number 1
     
     # Minimal debug output
-    debug_string = "A:#{max_accel.round(1)} V:#{max_vel.round(1)}"
+    debug_string = "#{max_accel.round(1)},#{max_vel.round(1)}"
     puts debug_string
     debug_string.bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
     #i2c.write(0x3e, 0, 0x80|0x40)
