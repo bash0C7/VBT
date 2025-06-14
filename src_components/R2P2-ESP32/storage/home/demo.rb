@@ -53,6 +53,26 @@ leds = WS2812.new(27)
 [0x38, 0x39, 0x14, 0x70, 0x54, 0x6c].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
 [0x38, 0x0c, 0x01].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
 
+# Startup instructions
+"USB down,".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+i2c.write(0x3e, 0, 0x80|0x40)  # Move to line 2
+"face LED".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+
+# 3 second countdown
+sleep_ms 1000
+i2c.write(0x3e, 0, 0x01)
+sleep_ms 2
+"3...".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+sleep_ms 1000
+i2c.write(0x3e, 0, 0x01)
+sleep_ms 2
+"2...".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+sleep_ms 1000
+i2c.write(0x3e, 0, 0x01)
+sleep_ms 2
+"1...".bytes.each { |c| i2c.write(0x3e, 0x40, c); sleep_ms 1 }
+sleep_ms 1000
+
 # Pre-allocated arrays - REUSE ONLY
 led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
@@ -77,7 +97,7 @@ sum_y = 0
   acc = mpu.acceleration
   sum_x = sum_x + (acc[:x] * 100).to_i  # Convert to integer
   sum_y = sum_y + (acc[:y] * 100).to_i
-  sleep_ms 100
+  sleep_ms 50
 end
 neutral_x = sum_x / 8
 neutral_y = sum_y / 8
@@ -109,13 +129,13 @@ loop do
     color = purple
   end
   
-  # Position shift - simplified
-  shift_x = rel_x / 33  # Approximate /33 for good range
-  shift_y = rel_y / -33
-  shift_x = 2 if shift_x > 2
-  shift_x = -2 if shift_x < -2
-  shift_y = 2 if shift_y > 2
-  shift_y = -2 if shift_y < -2
+  # Position shift - dramatic movement
+  shift_x = rel_x / 15  # More sensitive movement
+  shift_y = rel_y / -15  # Invert Y for natural feel
+  shift_x = 4 if shift_x > 4
+  shift_x = -4 if shift_x < -4
+  shift_y = 4 if shift_y > 4
+  shift_y = -4 if shift_y < -4
   
   # Clear LEDs - direct loop
   i = 0
@@ -139,9 +159,9 @@ loop do
   # Update display
   leds.show(*led_data)
   
-  # LCD update every 10 cycles
+  # LCD update every 20 cycles (1 second at 50ms)
   counter = counter + 1
-  if counter >= 10
+  if counter >= 20
     i2c.write(0x3e, 0, 0x01)
     sleep_ms 1
     
