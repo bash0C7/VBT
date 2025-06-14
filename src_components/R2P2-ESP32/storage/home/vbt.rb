@@ -1,5 +1,5 @@
-# VBT LED Display - Omnidirectional Motion Detection
-# Proper 3-axis acceleration calculation for any training direction
+# VBT LED Display - Memory Efficient Omnidirectional
+# Proper 3-axis calculation without sqrt, maximum memory efficiency
 
 # Round method for PicoRuby
 class Float
@@ -17,19 +17,6 @@ class Float
   end
 end
 
-# Sqrt approximation for PicoRuby (Babylonian method)
-class Numeric
-  def sqrt
-    return 0.0 if self <= 0
-    x = self.to_f
-    guess = x / 2.0
-    5.times do  # 5 iterations for reasonable accuracy
-      guess = (guess + x / guess) / 2.0
-    end
-    guess
-  end
-end
-
 # Initialize I2C
 require 'i2c'
 i2c = I2C.new(
@@ -39,7 +26,7 @@ i2c = I2C.new(
   scl_pin: 21
 )
 
-puts "VBT Omnidirectional Start"
+puts "VBT Start"
 # Initialize LCD
 [0x38, 0x39, 0x14, 0x70, 0x54, 0x6c].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
 [0x38, 0x0c, 0x01].each { |i| i2c.write(0x3e, 0, i); sleep_ms 1 }
@@ -82,97 +69,91 @@ class WS2812
 end
 leds = WS2812.new(27)
 
-# Pre-allocate LED array
+# Pre-allocate LED array - REUSE to avoid memory allocation
 led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 
-# Colors - Low brightness
-orange = 0x100800     # Acceleration display
-skyblue = 0x000C10    # Velocity display  
-cyan = 0x001010       # Set number display
+# Colors - Ultra low brightness
+orange = 0x100800
+skyblue = 0x000C10
+cyan = 0x001010
 
-# Gravity calibration - measure static 3-axis magnitude
-puts "Calibrating gravity..."
-gravity_sum = 0.0
-10.times do
+# Quick gravity calibration - use squared values to avoid sqrt
+puts "Cal"
+g_squared = 0.0
+5.times do
   acc = mpu.acceleration
-  # Calculate proper 3-axis magnitude
-  acc_magnitude = (acc[:x] * acc[:x] + acc[:y] * acc[:y] + acc[:z] * acc[:z]).sqrt
-  gravity_sum = gravity_sum + acc_magnitude
-  sleep_ms 50
+  # Calculate x²+y²+z² (3-axis magnitude squared)
+  g_squared = g_squared + (acc[:x] * acc[:x] + acc[:y] * acc[:y] + acc[:z] * acc[:z])
+  sleep_ms 20
 end
-static_gravity = gravity_sum / 10.0
-puts "Static gravity: #{static_gravity.round(2)}G"
+gravity_squared = g_squared / 5.0  # Average gravity squared (~1.0²)
 
-# Variables
+# Motion threshold squared (0.15G)² = 0.0225
+threshold_squared = 0.0225
+
+# Variables - minimal set
 max_accel = 0.0
 max_vel = 0.0
 current_vel = 0.0
-movement_threshold = 0.15  # Threshold for motion detection (G units)
 
-puts "Ready for omnidirectional training"
+puts "Start"
 
-# Main loop - omnidirectional motion detection
+# Main loop - memory optimized with proper physics
 loop do
-  # Get 3-axis acceleration data
+  # Get acceleration and calculate magnitude squared
   acc = mpu.acceleration
+  acc_squared = acc[:x] * acc[:x] + acc[:y] * acc[:y] + acc[:z] * acc[:z]
   
-  # Calculate proper 3-axis magnitude: sqrt(x² + y² + z²)
-  # This works for ANY direction of movement
-  acc_magnitude = (acc[:x] * acc[:x] + acc[:y] * acc[:y] + acc[:z] * acc[:z]).sqrt
-  
-  # Remove gravity to get net acceleration (works for any orientation)
-  net_accel_g = acc_magnitude - static_gravity
-  net_accel_g = 0.0 if net_accel_g < movement_threshold
-  
-  # Convert to m/s² (Arduino compatible)
-  net_accel_ms2 = net_accel_g * 9.81
-  
-  # Simple velocity integration (only when moving)
-  if net_accel_g > movement_threshold
-    current_vel = current_vel + net_accel_ms2 * 0.2  # 200ms integration step
+  # Motion detection using squared values (avoids sqrt)
+  if acc_squared > (gravity_squared + threshold_squared)
+    # Calculate net acceleration magnitude (approximate)
+    # Use simple approximation: if acc² > gravity², then net ≈ (acc² - gravity²) / (2 * gravity_estimate)
+    net_acc_approx = (acc_squared - gravity_squared) / 2.0  # Rough approximation
+    net_acc_ms2 = net_acc_approx * 9.81
+    
+    # Simple velocity integration
+    current_vel = current_vel + net_acc_ms2 * 0.2
     
     # Update maximums
-    max_accel = net_accel_ms2 if net_accel_ms2 > max_accel
+    max_accel = net_acc_ms2 if net_acc_ms2 > max_accel
     max_vel = current_vel if current_vel > max_vel
   end
   
-  # Calculate LED display (Arduino scaling: 40m/s² → 10 LEDs, 2m/s → 10 LEDs)
-  accel_leds = (max_accel / 4.0).to_i  # 40m/s² / 10 LEDs = 4.0 per LED
+  # Calculate LEDs - Arduino scaling
+  accel_leds = (max_accel * 0.25).to_i
   accel_leds = 10 if accel_leds > 10
-  
-  vel_leds = (max_vel / 0.2).to_i      # 2m/s / 10 LEDs = 0.2 per LED
+  vel_leds = (max_vel * 5.0).to_i
   vel_leds = 10 if vel_leds > 10
   
-  # Clear LED array
+  # Clear LED array efficiently
   i = 0
   while i < 25
     led_data[i] = 0
     i = i + 1
   end
   
-  # Set acceleration LEDs (rows 0-1, orange)
+  # Set acceleration LEDs (rows 0-1)
   i = 0
   while i < accel_leds
     led_data[i] = orange
     i = i + 1
   end
   
-  # Set velocity LEDs (rows 2-3, sky blue)
+  # Set velocity LEDs (rows 2-3)
   i = 0
   while i < vel_leds
     led_data[10 + i] = skyblue
     i = i + 1
   end
   
-  # Set number display (bottom right, cyan)
+  # Set number (bottom right)
   led_data[24] = cyan
   
   # Update LEDs
   leds.show(*led_data)
   
-  # Debug output with direction info
-  motion_status = net_accel_g > movement_threshold ? "[MOVING]" : "[STATIC]"
-  puts "#{motion_status} A:#{max_accel.round(1)}m/s² V:#{max_vel.round(1)}m/s Raw:#{acc_magnitude.round(2)}G"
+  # Minimal debug
+  puts "#{max_accel.round(1)},#{max_vel.round(1)}"
   
   sleep_ms 200
 end
