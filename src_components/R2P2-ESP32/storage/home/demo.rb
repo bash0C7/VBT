@@ -107,7 +107,7 @@ loop do
   
   # Movement calculation  
   shift_x = rel_x / 15
-  shift_y = rel_y / -15
+  shift_y = rel_y / 15  # Natural Y direction (no inversion)
   shift_x = 4 if shift_x > 4
   shift_x = -4 if shift_x < -4
   shift_y = 4 if shift_y > 4
