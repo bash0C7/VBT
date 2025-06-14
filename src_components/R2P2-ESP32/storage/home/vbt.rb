@@ -92,6 +92,8 @@ max_accel = 0.0
 max_vel = 0.0
 current_vel = 0.0
 last_change = Time.now.to_f * 1000
+prev_accel_leds = 0
+prev_vel_leds = 0
 
 puts "Start"
 
@@ -123,9 +125,11 @@ loop do
   vel_leds = (max_vel * 5.0).to_i
   vel_leds = 10 if vel_leds > 10
   
-  # Auto-dimming after 2 seconds
-  if accel_leds > 0 || vel_leds > 0
+  # Auto-dimming: reset timer only when LED values actually change
+  if accel_leds != prev_accel_leds || vel_leds != prev_vel_leds
     last_change = current_time
+    prev_accel_leds = accel_leds
+    prev_vel_leds = vel_leds
   end
   
   dimmed = (current_time - last_change) > 2000
