@@ -1,103 +1,117 @@
-# VBT LED Display - Minimal Sensor Test
-# Start with basic sensor reading to verify functionality
-require 'i2c'
-require 'mpu6886'
+# VBT LED Display - Ultra Minimal for Memory Constraints
+# Test step by step to identify working components
 
-puts "Starting VBT sensor test..."
-
-# Initialize I2C using confirmed working configuration
-puts "Initializing I2C..."
-i2c = I2C.new(
-  unit: :ESP32_I2C0,      # Use symbol format (confirmed working)
-  frequency: 100_000,
-  sda_pin: 25,
-  scl_pin: 21,
-  timeout: 2000           # Add timeout parameter
-)
-
-sleep_ms 200
-puts "I2C initialized successfully"
-
-# Initialize MPU6886 sensor
-puts "Initializing MPU6886..."
-mpu = MPU6886.new(i2c)
-
-# Set sensor configuration
-puts "Configuring sensor..."
-mpu.accel_range = MPU6886::ACCEL_RANGE_8G
-mpu.gyro_range = MPU6886::GYRO_RANGE_500DPS
-
-puts "Sensor configured. Starting basic measurement loop..."
-
-# Simple variables for tracking
-current_acceleration = 0.0
-max_acceleration = 0.0
-current_velocity = 0.0
-max_velocity = 0.0
-movement_detected = false
-cycle_count = 0
-
-# Constants
-GRAVITY = 9.81
-THRESHOLD = 1.5
-
-puts "System ready. Starting 200ms measurement loop..."
-
-# Basic measurement loop
-loop do
-  cycle_count += 1
-  
-  begin
-    # Read sensor data
-    accel_data = mpu.acceleration
-    
-    # Calculate magnitude (simple approximation for now)
-    # Using simpler calculation to avoid potential sqrt issues
-    accel_x_abs = accel_data[:x] > 0 ? accel_data[:x] : -accel_data[:x]
-    accel_y_abs = accel_data[:y] > 0 ? accel_data[:y] : -accel_data[:y]  
-    accel_z_abs = accel_data[:z] > 0 ? accel_data[:z] : -accel_data[:z]
-    
-    # Rough magnitude approximation (faster than sqrt)
-    accel_magnitude = (accel_x_abs + accel_y_abs + accel_z_abs) * 0.577 # ~1/sqrt(3)
-    
-    # Convert to m/s² and remove gravity
-    total_accel = accel_magnitude * GRAVITY
-    current_acceleration = total_accel - GRAVITY
-    current_acceleration = 0.0 if current_acceleration < 0
-    
-    # Simple movement detection
-    if current_acceleration >= THRESHOLD
-      if !movement_detected
-        puts "Movement started!"
-        movement_detected = true
-        current_velocity = 0.0
+# PicoRuby round method implementation (ESSENTIAL)
+class Float
+  def round(digits = 0)
+    if digits == 0
+      if self >= 0
+        (self + 0.5).to_i
+      else
+        (self - 0.5).to_i
       end
-      # Integrate velocity (simple Euler method)
-      current_velocity += current_acceleration * 0.2  # 200ms = 0.2s
     else
-      if movement_detected
-        puts "Movement ended. Max accel: #{max_acceleration.round(2)}, Max vel: #{max_velocity.round(2)}"
-        movement_detected = false
-      end
+      factor = 10.0 ** digits
+      ((self * factor) + (self >= 0 ? 0.5 : -0.5)).to_i / factor.to_f
     end
-    
-    # Update maximums
-    if current_acceleration > max_acceleration
-      max_acceleration = current_acceleration
-    end
-    if current_velocity > max_velocity
-      max_velocity = current_velocity
-    end
-    
-    # Print status every 5 cycles (1 second)
-    if cycle_count % 5 == 0
-      puts "Cycle #{cycle_count}: Accel=#{current_acceleration.round(2)} Vel=#{current_velocity.round(2)} Motion=#{movement_detected}"
-    end
-    
-  rescue => e
-    puts "Error in measurement: #{e.message}"
+  end
+end
+
+puts "Starting ultra-minimal VBT test..."
+
+# Test 1: Check basic functionality
+puts "Test 1: Basic Ruby functionality"
+test_var = 1.0
+puts "Basic variable: #{test_var}"
+
+# Test 2: Check I2C availability  
+puts "Test 2: I2C library"
+begin
+  require 'i2c'
+  puts "I2C library loaded"
+  
+  i2c = I2C.new(
+    unit: :ESP32_I2C0,
+    frequency: 100_000,
+    sda_pin: 25,
+    scl_pin: 21,
+    timeout: 2000
+  )
+  puts "I2C initialized"
+  
+rescue => e
+  puts "I2C error: #{e.message}"
+end
+
+# Test 3: MPU6886 (REQUIRED)
+puts "Test 3: MPU6886 library (required)"
+require 'mpu6886'
+puts "MPU6886 library loaded"
+
+mpu = MPU6886.new(i2c)
+mpu.accel_range = MPU6886::ACCEL_RANGE_8G
+puts "MPU6886 initialized with 8G range"
+
+# Simple read test
+accel = mpu.acceleration
+puts "Acceleration: x=#{accel[:x].round(2)} y=#{accel[:y].round(2)} z=#{accel[:z].round(2)}"
+
+# Test 4: WS2812 LED (REQUIRED)
+puts "Test 4: WS2812 LED (required)"
+require 'WS2812'
+puts "WS2812 library loaded"
+
+leds = WS2812.new(27)
+puts "WS2812 initialized"
+
+# Minimal LED test - just one color at a time
+puts "Testing single LED..."
+leds.show(0xFF0000, 0x000000, 0x000000, 0x000000, 0x000000)  # Only first LED red
+sleep_ms 500
+leds.show(0x000000, 0x000000, 0x000000, 0x000000, 0x000000)  # All off
+sleep_ms 500
+
+puts "LED test successful"
+
+# Test 5: Minimal VBT loop (both MPU6886 and LED required)
+puts "Test 5: Starting minimal VBT loop"
+
+# Ultra-simple variables
+max_accel = 0.0
+cycle = 0
+
+# Very simple loop - no arrays, minimal objects
+10.times do
+  cycle += 1
+  
+  # Get data
+  accel_data = mpu.acceleration
+  
+  # Simple magnitude (avoid sqrt)
+  accel_sum = accel_data[:x] + accel_data[:y] + accel_data[:z]
+  accel_mag = accel_sum > 0 ? accel_sum : -accel_sum  # absolute value
+  
+  # Track maximum
+  if accel_mag > max_accel
+    max_accel = accel_mag
   end
   
-  # Wait 200ms
+  # Very simple LED: just first few LEDs based on acceleration
+  if accel_mag > 1.2  # High acceleration
+    leds.show(0xFF8000, 0xFF8000, 0xFF8000, 0x000000, 0x000000)  # 3 orange LEDs
+  elsif accel_mag > 1.0  # Medium acceleration  
+    leds.show(0xFF8000, 0xFF8000, 0x000000, 0x000000, 0x000000)  # 2 orange LEDs
+  elsif accel_mag > 0.8  # Low acceleration
+    leds.show(0xFF8000, 0x000000, 0x000000, 0x000000, 0x000000)  # 1 orange LED
+  else
+    leds.show(0x000000, 0x000000, 0x000000, 0x000000, 0x000000)  # All off
+  end
+  
+  puts "Cycle #{cycle}: mag=#{accel_mag.round(2)} max=#{max_accel.round(2)}"
+  
   sleep_ms 200
 end
+
+puts "Test completed successfully!"
+
+puts "All tests completed successfully!"
