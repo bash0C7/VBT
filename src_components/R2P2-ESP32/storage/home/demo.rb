@@ -16,9 +16,9 @@ class WS2812
   def initialize(pin)
     @rmt = RMT.new(pin, t0h_ns: 350, t0l_ns: 800, t1h_ns: 700, t1l_ns: 600, reset_ns: 60000)
   end
-  def show(*c)
+  def show(colors)
     b = []
-    c.each { |x| r=((x>>16)&0xFF)>>3; g=((x>>8)&0xFF)>>3; b<<g<<r<<(x&0xFF)>>3 }
+    colors.each { |x| r=((x>>16)&0xFF)>>3; g=((x>>8)&0xFF)>>3; b<<g<<r<<(x&0xFF)>>3 }
     @rmt.write(b)
   end
 end
@@ -33,8 +33,9 @@ w = WS2812.new(27)
 [82,101,97,100,121].each{|x|i.write(0x3e,0x40,x)}
 sleep_ms 3000
 
-# LEDs
-l = [0]*25
+# LEDs - manual array creation
+l = []
+25.times { l << 0 }
 
 # Ruby positions
 r = [1,2,3,5,6,7,8,9,11,12,13,17]
@@ -85,7 +86,7 @@ loop do
     l[cy*5+cx] = col if cx>=0 && cx<5 && cy>=0 && cy<5
   end
   
-  w.show(*l)
+  w.show(l)
   
   # LCD
   c += 1
