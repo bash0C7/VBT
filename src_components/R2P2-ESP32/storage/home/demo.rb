@@ -1,10 +1,10 @@
-# Ruby Gemstone Demo - Improved Motion Response with Smooth Movement
+# Ruby Gemstone Demo - Pure LED Display (No LCD Dependencies)
 
 require 'i2c'
 require 'mpu6886'
 require 'rmt'
 
-# I2C setup
+# I2C setup for MPU6886 sensor only
 i = I2C.new(unit: :ESP32_I2C0, frequency: 100_000, sda_pin: 25, scl_pin: 21)
 
 # MPU6886 setup
@@ -30,14 +30,6 @@ end
 
 w = WS2812.new(27)
 
-# LCD init
-[0x38,0x39,0x14,0x70,0x54,0x6c].each{|x|i.write(0x3e,0,x);sleep_ms 1}
-[0x38,0x0c,0x01].each{|x|i.write(0x3e,0,x);sleep_ms 1}
-
-# Ready message
-[82,101,97,100,121].each{|x|i.write(0x3e,0x40,x)}
-sleep_ms 3000
-
 # Pre-allocated LED array
 l = []
 25.times { l << 0 }
@@ -46,8 +38,7 @@ l = []
 # Pattern: center diamond with smaller footprint
 r = [7, 11, 12, 13, 17]  # 5 LEDs forming compact ruby
 
-# Calibration phase
-[67,97,108].each{|x|i.write(0x3e,0x40,x)}
+# Calibration phase - sensor only
 sx = sy = 0
 5.times do
   a = m.acceleration
@@ -58,17 +49,11 @@ end
 nx = sx/5
 ny = sy/5
 
-# Ready for operation
-i.write(0x3e,0,0x01)
-sleep_ms 2
-[79,75].each{|x|i.write(0x3e,0x40,x)}
-
 # Motion control variables
 prev_sx = 0
 prev_sy = 0
 deadzone = 8        # Minimum motion threshold to prevent flicker
 gentle_threshold = 25   # Threshold for gentle vs dynamic movement
-c = 0
 
 # Main loop with improved motion response
 loop do
@@ -126,20 +111,6 @@ loop do
   end
   
   w.show(l)
-  
-  # Minimal LCD debug - only motion state to save memory
-  c += 1
-  if c >= 40  # Reduced frequency to save memory
-    # Single character motion state only
-    if motion_intensity < (deadzone * deadzone)
-      i.write(0x3e,0x40,83)  # 'S' for Static
-    elsif motion_intensity < (gentle_threshold * gentle_threshold)
-      i.write(0x3e,0x40,71)  # 'G' for Gentle  
-    else
-      i.write(0x3e,0x40,68)  # 'D' for Dynamic
-    end
-    c = 0
-  end
-  
+    
   sleep_ms 50
 end
