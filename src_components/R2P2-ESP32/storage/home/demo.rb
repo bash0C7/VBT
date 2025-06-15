@@ -95,7 +95,7 @@ loop do
     end
     
     new_sx = raw_x / scale
-    new_sy = raw_y / -scale
+    new_sy = raw_y / scale
     
     # Constrain movement range
     sx = new_sx > 4 ? 4 : new_sx < -4 ? -4 : new_sx
