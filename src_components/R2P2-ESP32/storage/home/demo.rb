@@ -1,4 +1,4 @@
-# Ruby Gemstone Demo - Ultra Minimal
+# Ruby Gemstone Demo - Improved Motion Response with Smooth Movement
 
 require 'i2c'
 require 'mpu6886'
@@ -22,9 +22,7 @@ class WS2812
       r = ((x >> 16) & 0xFF) >> 3
       g = ((x >> 8) & 0xFF) >> 3
       blue = (x & 0xFF) >> 3
-      b << g
-      b << r  
-      b << blue
+      b << g << r << blue
     end
     @rmt.write(b)
   end
@@ -36,18 +34,19 @@ w = WS2812.new(27)
 [0x38,0x39,0x14,0x70,0x54,0x6c].each{|x|i.write(0x3e,0,x);sleep_ms 1}
 [0x38,0x0c,0x01].each{|x|i.write(0x3e,0,x);sleep_ms 1}
 
-# Ready
+# Ready message
 [82,101,97,100,121].each{|x|i.write(0x3e,0x40,x)}
 sleep_ms 3000
 
-# LEDs - manual array creation
+# Pre-allocated LED array
 l = []
 25.times { l << 0 }
 
-# Ruby positions
-r = [1,2,3,5,6,7,8,9,11,12,13,17]
+# New ruby pattern (more compact gemstone shape)
+# Pattern: center diamond with smaller footprint
+r = [7, 11, 12, 13, 17]  # 5 LEDs forming compact ruby
 
-# Calibrate
+# Calibration phase
 [67,97,108].each{|x|i.write(0x3e,0x40,x)}
 sx = sy = 0
 5.times do
@@ -59,79 +58,86 @@ end
 nx = sx/5
 ny = sy/5
 
-# Ready
+# Ready for operation
 i.write(0x3e,0,0x01)
 sleep_ms 2
 [79,75].each{|x|i.write(0x3e,0x40,x)}
 
-# Main loop
+# Motion control variables
+prev_sx = 0
+prev_sy = 0
+deadzone = 8        # Minimum motion threshold to prevent flicker
+gentle_threshold = 25   # Threshold for gentle vs dynamic movement
 c = 0
+
+# Main loop with improved motion response
 loop do
   a = m.acceleration
-  x = (a[:x]*100).to_i - nx
-  y = (a[:y]*100).to_i - ny
+  raw_x = (a[:x]*100).to_i - nx
+  raw_y = (a[:y]*100).to_i - ny
   
-  # Color by motion
-  t = x*x + y*y
-  col = 0xFF0000
-  col = 0xFF4080 if t > 400
-  col = 0x8040FF if t > 1600
+  # Calculate motion intensity
+  motion_intensity = raw_x*raw_x + raw_y*raw_y
   
-  # Movement
-  sx = x/15
-  sy = y/-15
-  sx = sx > 4 ? 4 : sx < -4 ? -4 : sx
-  sy = sy > 4 ? 4 : sy < -4 ? -4 : sy
+  # Apply deadzone and dynamic scaling
+  if motion_intensity < (deadzone * deadzone)
+    # Within deadzone - maintain previous position (no flicker)
+    sx = prev_sx
+    sy = prev_sy
+  else
+    # Outside deadzone - calculate movement with dynamic sensitivity
+    if motion_intensity < (gentle_threshold * gentle_threshold)
+      # Gentle movement - high damping for smooth motion
+      scale = 80  # Much higher damping for subtle movement
+    else
+      # Strong movement - lower damping for dynamic response
+      scale = 15  # Original sensitivity for dramatic movement
+    end
+    
+    new_sx = raw_x / scale
+    new_sy = raw_y / -scale
+    
+    # Constrain movement range
+    sx = new_sx > 4 ? 4 : new_sx < -4 ? -4 : new_sx
+    sy = new_sy > 4 ? 4 : new_sy < -4 ? -4 : new_sy
+    
+    # Store position for next deadzone check
+    prev_sx = sx
+    prev_sy = sy
+  end
   
-  # Clear
-  25.times{|j|l[j]=0}
+  # Color selection based on motion intensity
+  col = 0xFF0000  # Static red
+  col = 0xFF4080 if motion_intensity > 600    # Pink for gentle motion
+  col = 0x8040FF if motion_intensity > 2400   # Purple for active motion
   
-  # Draw
+  # Clear LED array
+  25.times{|j| l[j] = 0}
+  
+  # Draw ruby at calculated position
   r.each do |p|
-    cx = p%5 + sx
-    cy = p/5 + sy
-    l[cy*5+cx] = col if cx>=0 && cx<5 && cy>=0 && cy<5
+    led_x = p % 5 + sx
+    led_y = p / 5 + sy
+    
+    # Only draw if within LED matrix bounds
+    if led_x >= 0 && led_x < 5 && led_y >= 0 && led_y < 5
+      l[led_y * 5 + led_x] = col
+    end
   end
   
   w.show(l)
   
-  # LCD - 3-axis display
+  # Minimal LCD debug - only motion state to save memory
   c += 1
-  if c >= 20
-    i.write(0x3e,0,0x01)
-    sleep_ms 1
-    
-    # Line 1: X±nY±n (compact format)
-    i.write(0x3e,0x40,88)  # 'X'
-    if x >= 0
-      i.write(0x3e,0x40,43)  # '+'
-      val = x < 10 ? x : 9
+  if c >= 40  # Reduced frequency to save memory
+    # Single character motion state only
+    if motion_intensity < (deadzone * deadzone)
+      i.write(0x3e,0x40,83)  # 'S' for Static
+    elsif motion_intensity < (gentle_threshold * gentle_threshold)
+      i.write(0x3e,0x40,71)  # 'G' for Gentle  
     else
-      i.write(0x3e,0x40,45)  # '-'
-      val = (-x) < 10 ? (-x) : 9
+      i.write(0x3e,0x40,68)  # 'D' for Dynamic
     end
-    i.write(0x3e,0x40,48+val)  # X digit
-    
-    i.write(0x3e,0x40,89)  # 'Y'
-    if y >= 0
-      i.write(0x3e,0x40,43)  # '+'
-      val = y < 10 ? y : 9
-    else
-      i.write(0x3e,0x40,45)  # '-'
-      val = (-y) < 10 ? (-y) : 9
-    end
-    i.write(0x3e,0x40,48+val)  # Y digit
-    
-    # Line 2: T:n (compact tilt display)
-    i.write(0x3e,0,0x80|0x40)
-    i.write(0x3e,0x40,84)  # 'T'
-    i.write(0x3e,0x40,58)  # ':'
-    
-    # Normalize tilt to 0-9 range  
-    tilt_val = t / 200  # Scale down from squared values
-    tilt_val = tilt_val > 9 ? 9 : tilt_val
-    i.write(0x3e,0x40,48+tilt_val)  # Tilt digit
-    
     c = 0
   end
   
