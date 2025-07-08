@@ -1,3 +1,57 @@
+=begin
+VBT (Velocity-Based Training) システム用ビルドスクリプト
+
+このRakefileは、ATOM Matrix ESP32デバイス向けのVBTシステムの
+ビルドとデプロイメントを自動化するタスクを提供する。
+
+【システム概要】
+IMUセンサーを使用したリアルタイム重量トレーニングの速度・加速度測定システム。
+Arduino C++とRuby（PicoRuby）のハイブリッド構成でBLE通信とLED表示を実現。
+
+【主要機能】
+- ESP-IDF環境の自動セットアップ（Homebrew OpenSSL対応）
+- R2P2-ESP32（PicoRuby）との統合ビルド
+- Arduino C++とRubyのハイブリッド開発サポート
+- 自動的なソースコンポーネント管理（src_components/ → components/）
+- 段階的なビルド・フラッシュ・モニタリング
+
+【利用可能なタスク】
+  rake init        # 初期セットアップ：componentsディレクトリ作成、R2P2-ESP32クローン、ソースディレクトリ作成、ソースコピー、ビルド実行
+  rake update      # 更新：git変更クリーン、最新版プル、ソースコピー、リビルド実行
+  rake cleanbuild  # クリーンビルド：fullclean、setup_esp32、rake実行
+  rake buildall    # 全体ビルド：setup_esp32とrake buildの実行
+  rake build       # ビルド：rake buildのみ実行
+  rake flash       # フラッシュ：ESP32にプログラム書き込み
+  rake monitor     # モニタ：ESP32シリアル出力監視
+  rake check_env   # 環境チェック：ESP-IDF環境とコマンドの確認
+
+【開発フロー】
+1. 初回セットアップ：rake init（src_components/R2P2-ESP32/storage/home/自動作成）
+2. 通常の開発：rake build && rake flash && rake monitor
+3. 依存関係更新：rake update
+4. 完全リビルド：rake cleanbuild
+
+【ディレクトリ構造】
+プロジェクトルート/
+├── src_components/          # ソースコンポーネント（Git管理対象）
+│   └── R2P2-ESP32/
+│       └── storage/home/    # Rubyファイル配置場所
+└── components/              # ビルド用ディレクトリ（Git管理対象外）
+    └── R2P2-ESP32/          # クローンされたPicoRubyランタイム
+        └── storage/home/    # Rubyファイル実行場所
+
+【パス管理】
+- ソース→ターゲット：src_components/ → components/
+- Rubyファイル配置：components/R2P2-ESP32/storage/home/
+- ビルド時に自動コピー、サブディレクトリは削除してファイルのみ保持
+
+【環境要件】
+- ESP-IDF: $HOME/esp/esp-idf/
+- Homebrew OpenSSL: /opt/homebrew/opt/openssl
+- Git with submodule support
+- Ruby with FileUtils
+=end
+
 require 'fileutils'
 
 # Common environment setup for all tasks
@@ -146,7 +200,7 @@ def copy_source_components
   end
 end
 
-desc "初期セットアップ：componentsディレクトリ作成、R2P2-ESP32クローン、ソースコピー、ビルド実行"
+desc "初期セットアップ：componentsディレクトリ作成、R2P2-ESP32クローン、ソースディレクトリ作成、ソースコピー、ビルド実行"
 task :init do
   puts "Starting VBT project init..."
   setup_environment
@@ -155,6 +209,11 @@ task :init do
     # Create components directory
     FileUtils.mkdir_p('components')
     puts "Created components directory"
+    
+    # Create source components directory structure
+    src_home_dir = 'src_components/R2P2-ESP32/storage/home'
+    FileUtils.mkdir_p(src_home_dir)
+    puts "Created source components directory: #{src_home_dir}"
     
     # Clone R2P2-ESP32 repository
     Dir.chdir('components') do
