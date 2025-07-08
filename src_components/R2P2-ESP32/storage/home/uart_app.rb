@@ -10,11 +10,21 @@ uart = UART.new(unit: :ESP32_UART0, txd_pin: 0, rxd_pin: 1, baudrate: 115200)
 uart.puts "Start"
 
 # Minimal loop
-count = 0
-while count < 10
-  uart.puts count.to_s
-  count = count + 1
-  sleep_ms 1000
+loop do
+  input = uart.read
+  puts input
+  uart.puts input
+  if input == "red"
+    uart.puts "RED"
+  elsif input == "green"
+    uart.puts "GREEN"
+  elsif input == "blue"
+    uart.puts "BLUE"
+  elsif input == "quit"
+    uart.puts "QUIT"
+    break
+  end
+  sleep_ms 50
 end
 
 uart.puts "End"

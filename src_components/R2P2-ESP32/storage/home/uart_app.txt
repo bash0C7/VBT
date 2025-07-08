@@ -8,10 +8,10 @@ PC側手順
    require 'uart'
 
 3. シリアルポートを開く（適切なポート名に変更）
-   serial = UART.new('/dev/cu.usbserial-5D5A501DF0', 115200)
+   serial = UART.open('/dev/cu.usbserial-5D5A501DF0', 115200)
 
 4. データ送信
-   serial.write("Hello from PC\n")
+   serial.write("green\n")
 
 5. データ受信
    response = serial.read

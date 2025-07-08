@@ -241,6 +241,7 @@ desc "クリーンビルド：fullclean、setup_esp32、rake実行"
 task :cleanbuild do
   puts "Performing clean build..."
   setup_environment
+  copy_source_components
   
   begin
     Dir.chdir('components/R2P2-ESP32') do
@@ -259,6 +260,7 @@ desc "全体ビルド：setup_esp32とrake buildの実行"
 task :buildall do
   puts "Building all components..."
   setup_environment
+  copy_source_components
   
   begin
     Dir.chdir('components/R2P2-ESP32') do
@@ -276,6 +278,7 @@ desc "ビルド：rake buildのみ実行"
 task :build do
   puts "Building project..."
   setup_environment
+  copy_source_components
   
   begin
     Dir.chdir('components/R2P2-ESP32') do
