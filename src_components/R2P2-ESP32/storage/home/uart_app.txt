@@ -22,7 +22,7 @@ PC側手順
      print "送信内容: "
      message = gets.chomp
      break if message == "exit"
-     serial.write(message + "\n")
+     serial.write(message)
      puts "受信: #{serial.read}"
    end
 

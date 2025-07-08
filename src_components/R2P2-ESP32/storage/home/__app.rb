@@ -7,7 +7,7 @@ require 'rmt'
 require "uart"
 
 # Initialize devices
-uart = UART.new(unit: :ESP32_UART0, txd_pin: 0, rxd_pin: 1, baudrate: 115200)
+uart = UART.new(unit: :ESP32_UART0, baudrate: 115200)
 i = I2C.new(unit: :ESP32_I2C0, frequency: 100_000, sda_pin: 25, scl_pin: 21)
 m = MPU6886.new(i)
 m.accel_range = MPU6886::ACCEL_RANGE_4G

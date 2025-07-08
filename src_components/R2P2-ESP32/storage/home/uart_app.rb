@@ -5,7 +5,7 @@
 require 'uart'
 
 # Basic UART only - no RMT yet
-uart = UART.new(unit: :ESP32_UART0, txd_pin: 0, rxd_pin: 1, baudrate: 115200)
+uart = UART.new(unit: :ESP32_UART0, baudrate: 115200)
 
 uart.puts "Start"
 
@@ -13,7 +13,6 @@ uart.puts "Start"
 loop do
   input = uart.read
   puts input
-  uart.puts input
   if input == "red"
     uart.puts "RED"
   elsif input == "green"
