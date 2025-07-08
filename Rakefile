@@ -344,4 +344,4 @@ task :check_env do
 end
 
 # Default task
-task :default => :build
+task :default => [:build, :flash, :monitor]
