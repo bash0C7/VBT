@@ -1,5 +1,5 @@
 =begin
-ESP32 PicoRuby汎用ビルドスクリプト
+ESP32 PicoRuby装置開発汎用ビルドスクリプト
 
 このRakefileは、ESP32上でPicoRubyを使用する装置開発のための
 汎用ビルドスクリプトとして設計されている。
