@@ -132,7 +132,7 @@ def copy_source_components
   end
 end
 
-desc "Initial setup: create components, clone R2P2-ESP32, copy picoruby-esp32, and build"
+desc "初期セットアップ：componentsディレクトリ作成、R2P2-ESP32クローン、ソースコピー、ビルド実行"
 task :init do
   puts "Starting VBT project init..."
   setup_environment
@@ -170,7 +170,7 @@ task :init do
   puts "Setup completed successfully"
 end
 
-desc "Update: clean git changes, pull latest, copy picoruby-esp32, and rebuild"
+desc "更新：git変更クリーン、最新版プル、ソースコピー、リビルド実行"
 task :update do
   puts "Updating VBT project..."
   setup_environment
@@ -223,7 +223,7 @@ task :update do
   puts "Update completed successfully"
 end
 
-desc "Clean build: fullclean, setup_esp32, and rake"
+desc "クリーンビルド：fullclean、setup_esp32、rake実行"
 task :cleanbuild do
   puts "Performing clean build..."
   setup_environment
@@ -241,7 +241,7 @@ task :cleanbuild do
   puts "Clean build completed successfully"
 end
 
-desc "Build all: setup_esp32 and rake build"
+desc "全体ビルド：setup_esp32とrake buildの実行"
 task :buildall do
   puts "Building all components..."
   setup_environment
@@ -258,7 +258,7 @@ task :buildall do
   puts "Build all completed successfully"
 end
 
-desc "Build: execute rake build only"
+desc "ビルド：rake buildのみ実行"
 task :build do
   puts "Building project..."
   setup_environment
@@ -274,7 +274,39 @@ task :build do
   puts "Build completed successfully"
 end
 
-desc "Check environment setup"
+desc "フラッシュ：ESP32にプログラム書き込み"
+task :flash do
+  puts "flash project..."
+  setup_environment
+  
+  begin
+    Dir.chdir('components/R2P2-ESP32') do
+      execute_with_esp_env('rake flash')
+    end
+  rescue => e
+    abort "Error during flash: #{e.message}"
+  end
+  
+  puts "flash completed successfully"
+end
+
+desc "モニタ：ESP32シリアル出力監視"
+task :monitor do
+  puts "monitor project..."
+  setup_environment
+  
+  begin
+    Dir.chdir('components/R2P2-ESP32') do
+      execute_with_esp_env('rake monitor')
+    end
+  rescue => e
+    abort "Error during monitor: #{e.message}"
+  end
+  
+  puts "monitor completed successfully"
+end
+
+desc "環境チェック：ESP-IDF環境とコマンドの確認"
 task :check_env do
   setup_environment
   
