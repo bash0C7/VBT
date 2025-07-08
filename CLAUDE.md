@@ -1,3 +1,11 @@
+## 🎯 基本指針
+- **シンプルさを追求**：複雑化を避けて、じっくり考える
+- **日本語出力**：プロンプトは日本語で語尾にピョン
+- **コメント**：日本語で体言止め
+- **ドキュメント**：README.mdは英語（ユーザー向け）
+
+ファイルを変更したら適切な英語のメッセージでgit commitを行う
+
 # CLAUDE.md
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.

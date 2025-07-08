@@ -3,7 +3,7 @@
 
 require 'i2c'
 require 'mpu6886'
-require 'rmt'
+require 'ws2812'
 require "uart"
 
 # Initialize devices
@@ -12,27 +12,7 @@ i = I2C.new(unit: :ESP32_I2C0, frequency: 100_000, sda_pin: 25, scl_pin: 21)
 m = MPU6886.new(i)
 m.accel_range = MPU6886::ACCEL_RANGE_4G
 
-# Memory optimized WS2812 class
-class WS2812
-  def initialize(pin)
-    @rmt = RMT.new(pin, t0h_ns: 350, t0l_ns: 800, t1h_ns: 700, t1l_ns: 600, reset_ns: 60000)
-  end
-
-  # Direct LED control without array allocation
-  def show(colors)
-    bytes = []
-    colors.each do |color|
-      # Convert RGB to GRB format with reduced brightness
-      r = ((color >> 16) & 0xFF) >> 3
-      g = ((color >> 8) & 0xFF) >> 3
-      b = (color & 0xFF) >> 3
-      bytes << g << r << b
-    end
-    @rmt.write(bytes)
-  end
-end
-
-w = WS2812.new(27)
+w = WS2812.new(RMTDriver.new(27))
 
 # Pre-allocated LED array - REUSE to avoid memory allocation
 led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]

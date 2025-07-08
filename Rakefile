@@ -186,11 +186,25 @@ task :update do
       end
       puts "Cleaned git changes and untracked files"
       
+      # Reset and clean all submodules recursively
+      unless system('git submodule foreach --recursive git reset --hard HEAD')
+        abort "Error: Failed to reset submodules"
+      end
+      unless system('git submodule foreach --recursive git clean -fd')
+        abort "Error: Failed to clean submodules"
+      end
+      puts "Cleaned all submodules recursively"
+      
       # Pull latest changes with submodules
       unless system('git pull --recurse-submodules')
         abort "Error: Failed to pull latest changes"
       end
-      puts "Pulled latest changes"
+      
+      # Update submodules to latest
+      unless system('git submodule update --init --recursive --remote')
+        abort "Error: Failed to update submodules"
+      end
+      puts "Updated to latest with all submodules"
     end
     
     # Copy source components contents
