@@ -1,12 +1,12 @@
 =begin
-VBT (Velocity-Based Training) システム用ビルドスクリプト
+ESP32 PicoRuby汎用ビルドスクリプト
 
-このRakefileは、ATOM Matrix ESP32デバイス向けのVBTシステムの
-ビルドとデプロイメントを自動化するタスクを提供する。
+このRakefileは、ESP32上でPicoRubyを使用する装置開発のための
+汎用ビルドスクリプトとして設計されている。
 
 【システム概要】
-IMUセンサーを使用したリアルタイム重量トレーニングの速度・加速度測定システム。
-Arduino C++とRuby（PicoRuby）のハイブリッド構成でBLE通信とLED表示を実現。
+ESP32 + PicoRuby（R2P2-ESP32）環境での統合開発を支援。
+Arduino C++とRuby（PicoRuby）のハイブリッド構成によるマイクロコントローラー開発。
 
 【主要機能】
 - ESP-IDF環境の自動セットアップ（Homebrew OpenSSL対応）
@@ -202,7 +202,7 @@ end
 
 desc "初期セットアップ：componentsディレクトリ作成、R2P2-ESP32クローン、ソースディレクトリ作成、ソースコピー、ビルド実行"
 task :init do
-  puts "Starting VBT project init..."
+  puts "Starting ESP32 PicoRuby project init..."
   setup_environment
   
   begin
@@ -245,7 +245,7 @@ end
 
 desc "更新：git変更クリーン、最新版プル、ソースコピー、リビルド実行"
 task :update do
-  puts "Updating VBT project..."
+  puts "Updating ESP32 PicoRuby project..."
   setup_environment
   
   begin
