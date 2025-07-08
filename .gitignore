@@ -5,3 +5,13 @@
 .vscode/
 .idea/
 **/.DS_Store
+
+# Bundler (recursive)
+**/vendor/
+**/.bundle/
+**/Gemfile.lock
+
+# Ruby artifacts (recursive)
+**/*.gem
+**/*.rbc
+  
