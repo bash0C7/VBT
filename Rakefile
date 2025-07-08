@@ -124,6 +124,20 @@ def copy_source_components
     begin
       FileUtils.cp_r("#{source_dir}/.", target_dir)
       puts "Copied src_components contents to #{target_dir}"
+      
+      # Remove subdirectories in components/R2P2-ESP32/storage/home but keep files
+      home_dir = File.join(target_dir, 'R2P2-ESP32', 'storage', 'home')
+      if Dir.exist?(home_dir)
+        Dir.foreach(home_dir) do |item|
+          next if item == '.' || item == '..'
+          
+          item_path = File.join(home_dir, item)
+          if File.directory?(item_path)
+            FileUtils.rm_rf(item_path)
+            puts "Removed directory: #{item_path}"
+          end
+        end
+      end
     rescue => e
       abort "Error: Failed to copy source components: #{e.message}"
     end
