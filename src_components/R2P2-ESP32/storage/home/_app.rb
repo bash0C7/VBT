@@ -1,141 +1,131 @@
-# VBT Memory Optimized - PicoRuby
-# Ultra minimal implementation to avoid out of memory errors
-
 require 'i2c'
 require 'mpu6886'
-require 'ws2812'
+require 'rmt'
 require "uart"
 
-# Initialize devices
-uart = UART.new(unit: :ESP32_UART0, baudrate: 115200)
+# I2C setup for MPU6886 sensor only
 i = I2C.new(unit: :ESP32_I2C0, frequency: 100_000, sda_pin: 25, scl_pin: 21)
+
+# MPU6886 setup
 m = MPU6886.new(i)
 m.accel_range = MPU6886::ACCEL_RANGE_4G
 
-w = WS2812.new(RMTDriver.new(27))
 
-# Pre-allocated LED array - REUSE to avoid memory allocation
-led_data = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+uart = UART.new(unit: :ESP32_UART0, baudrate: 115200)
 
-# Cross pattern positions (center cross)
-cross_positions = [7, 11, 12, 13, 17]
-
-# Calibration - use simple variables
-sx_sum = 0
-sy_sum = 0
-calibration_count = 5
-
-# Calibration loop
-while calibration_count > 0
-  a = m.acceleration
-  sx_sum = sx_sum + (a[:x] * 100).to_i
-  sy_sum = sy_sum + (a[:y] * 100).to_i
-  calibration_count = calibration_count - 1
-  sleep_ms 200
+# WS2812 minimal class
+class WS2812
+  def initialize(pin)
+    @rmt = RMT.new(pin, t0h_ns: 350, t0l_ns: 800, t1h_ns: 700, t1l_ns: 600, reset_ns: 60000)
+  end
+  def show(colors)
+    b = []
+    colors.each do |x|
+      r = ((x >> 16) & 0xFF) >> 3
+      g = ((x >> 8) & 0xFF) >> 3
+      blue = (x & 0xFF) >> 3
+      b << g << r << blue
+    end
+    @rmt.write(b)
+  end
 end
 
-nx = sx_sum / 5
-ny = sy_sum / 5
+w = WS2812.new(27)
 
-# Simple variables to avoid complex objects
+# Pre-allocated LED array
+l = []
+25.times { l << 0 }
+
+# New ruby pattern (more compact gemstone shape)
+# Pattern: center diamond with smaller footprint
+r = [7, 11, 12, 13, 17]  # 5 LEDs forming compact ruby
+
+# Calibration phase - sensor only
+sx = sy = 0
+5.times do
+  a = m.acceleration
+  sx += (a[:x]*100).to_i
+  sy += (a[:y]*100).to_i
+  sleep_ms 200
+end
+nx = sx/5
+ny = sy/5
+
+# Motion control variables
 prev_sx = 0
 prev_sy = 0
-deadzone = 8
-gentle_threshold = 25
-current_color = 0xFF0000  # Red
+deadzone = 8        # Minimum motion threshold to prevent flicker
+gentle_threshold = 25   # Threshold for gentle vs dynamic movement
 
-uart.puts "VBT Ready"
+col = 0xFF0000  # Static red
 
+# Main loop with improved motion response
 loop do
   # Handle serial input
   input = uart.read
-  if input == "red"
-    current_color = 0xFF0000
-    uart.puts "RED"
-  elsif input == "green"
-    current_color = 0x00FF00
-    uart.puts "GREEN"
-  elsif input == "blue"
-    current_color = 0x0000FF
-    uart.puts "BLUE"
-  elsif input == "quit"
-    uart.puts "QUIT"
+  if input == "r"
+    col = 0xAA0000
+    uart.puts "R"
+  elsif input == "g"
+    col = 0x00AA00
+    uart.puts "g"
+  elsif input == "b"
+    col = 0x0000AA
+    uart.puts "b"
+  elsif input == "q"
+    exit
     break
   end
 
-  # Get acceleration data
   a = m.acceleration
-  raw_x = (a[:x] * 100).to_i - nx
-  raw_y = (a[:y] * 100).to_i - ny
-
-  # Calculate motion intensity without complex operations
-  motion_x_sq = raw_x * raw_x
-  motion_y_sq = raw_y * raw_y
-  motion_intensity = motion_x_sq + motion_y_sq
-
-  # Motion processing - simplified logic
-  deadzone_sq = deadzone * deadzone
-  if motion_intensity < deadzone_sq
+  raw_x = (a[:x]*100).to_i - nx
+  raw_y = (a[:y]*100).to_i - ny
+  
+  # Calculate motion intensity
+  motion_intensity = raw_x*raw_x + raw_y*raw_y
+  
+  # Apply deadzone and dynamic scaling
+  if motion_intensity < (deadzone * deadzone)
+    # Within deadzone - maintain previous position (no flicker)
     sx = prev_sx
     sy = prev_sy
   else
-    # Simple scale calculation
-    gentle_sq = gentle_threshold * gentle_threshold
-    if motion_intensity < gentle_sq
-      scale = 80
+    # Outside deadzone - calculate movement with dynamic sensitivity
+    if motion_intensity < (gentle_threshold * gentle_threshold)
+      # Gentle movement - high damping for smooth motion
+      scale = 80  # Much higher damping for subtle movement
     else
-      scale = 15
+      # Strong movement - lower damping for dynamic response
+      scale = 15  # Original sensitivity for dramatic movement
     end
-
-    # Calculate new positions with simple bounds checking
+    
     new_sx = raw_x / scale
     new_sy = raw_y / scale
-
-    # Clamp values manually
-    sx = new_sx
-    if sx > 4
-      sx = 4
-    end
-    if sx < -4
-      sx = -4
-    end
-
-    sy = new_sy
-    if sy > 4
-      sy = 4
-    end
-    if sy < -4
-      sy = -4
-    end
-
+    
+    # Constrain movement range
+    sx = new_sx > 4 ? 4 : new_sx < -4 ? -4 : new_sx
+    sy = new_sy > 4 ? 4 : new_sy < -4 ? -4 : new_sy
+    
+    # Store position for next deadzone check
     prev_sx = sx
     prev_sy = sy
   end
-
-  # Clear LED array efficiently
-  i = 0
-  while i < 25
-    led_data[i] = 0
-    i = i + 1
-  end
-
-  # Set cross pattern with bounds checking
-  pos_index = 0
-  while pos_index < 5
-    p = cross_positions[pos_index]
-    led_x = (p % 5) + sx
-    led_y = (p / 5) + sy
-
-    # Manual bounds checking
-    if led_x >= 0 && led_x < 5 && led_y >= 0 && led_y < 5
-      led_index = led_y * 5 + led_x
-      led_data[led_index] = current_color
-    end
+  
+  # Clear LED array
+  25.times{|j| l[j] = 0}
+  
+  # Draw ruby at calculated position
+  r.each do |p|
+    led_x = p % 5 + sx
+    led_y = p / 5 + sy
     
-    pos_index = pos_index + 1
+    # Only draw if within LED matrix bounds
+    if led_x >= 0 && led_x < 5 && led_y >= 0 && led_y < 5
+      l[led_y * 5 + led_x] = col
+    end
   end
-
-  # Update LEDs
-  w.show(led_data)
+  
+  w.show(l)
+    
   sleep_ms 50
 end

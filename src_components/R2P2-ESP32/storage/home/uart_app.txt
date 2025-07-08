@@ -29,3 +29,11 @@ PC側手順
 7. 終了
    serial.close
 =end
+
+require 'uart'; serial = UART.open('/dev/cu.usbserial-5D5A501DF0', 115200); loop do
+     print "送信内容: "
+     message = gets.chomp
+     break if message == "exit"
+     serial.write(message)
+     puts "受信: #{serial.read}"
+   end
