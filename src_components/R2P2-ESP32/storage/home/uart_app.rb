@@ -4,6 +4,10 @@
 # Try with just one require at a time
 require 'uart'
 
+#u1 = UART.new(unit: :ESP32_UART1, txd_pin: 32, rxd_pin: 33, baudrate: 38400) #grove
+#u1.puts "@MD2"
+#u1.puts "@ACabcdefghijklmn"
+
 # Basic UART only - no RMT yet
 uart = UART.new(unit: :ESP32_UART0, baudrate: 115200)
 
