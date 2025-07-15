@@ -6,53 +6,38 @@ def chika(cnt, pin)
   led = WS2812.new(RMTDriver.new(pin))
   uart = UART.new(unit: :ESP32_UART0, baudrate: 115200)
   
-  colors = Array.new(cnt) { [0, 0, 0] }
+  colors = [[0, 0, 0]] * cnt
   
   loop do
     input = uart.read
     if input && input.length > 0
-      input_char = input.strip.downcase
-      puts "受信: #{input_char}"
+      puts input
       
-      base_color = nil
-      case input_char
-      when "r"
-        uart.puts "RED点灯開始"
-        base_color = :red
-      when "g"
-        uart.puts "GREEN点灯開始"
-        base_color = :green
-      when "b"
-        uart.puts "BLUE点灯開始"
-        base_color = :blue
-      end
-      
-      if base_color
-        # 5秒間のアニメーション実行
-        100.times do |step|
-          cnt.times do |i|
-            # 三角波で近似（0-255の範囲）
-            wave_pos = (step * 4 + i * 16) % 128
-            brightness = wave_pos < 64 ? wave_pos * 4 : (128 - wave_pos) * 4
-            
-            case base_color
-            when :red
-              colors[i] = [brightness, brightness / 4, 0]
-            when :green
-              colors[i] = [brightness / 4, brightness, 0]
-            when :blue
-              colors[i] = [0, brightness / 4, brightness]
-            end
-          end
-          
-          led.show_rgb(*colors)
-          sleep_ms(50)
-        end
-        
-        # 消灯
-        cnt.times { |i| colors[i] = [0, 0, 0] }
+      if input == "r"
+        uart.puts "R"
+        # 簡単な赤点灯
+        (0...cnt).each { |i| colors[i] = [100, 20, 0] }
         led.show_rgb(*colors)
+        sleep_ms(2000)
+        
+      elsif input == "g"
+        uart.puts "G" 
+        # 簡単な緑点灯
+        (0...cnt).each { |i| colors[i] = [20, 100, 0] }
+        led.show_rgb(*colors)
+        sleep_ms(2000)
+        
+      elsif input == "b"
+        uart.puts "B"
+        # 簡単な青点灯
+        (0...cnt).each { |i| colors[i] = [0, 20, 100] }
+        led.show_rgb(*colors)
+        sleep_ms(2000)
       end
+      
+      # 消灯
+      (0...cnt).each { |i| colors[i] = [0, 0, 0] }
+      led.show_rgb(*colors)
     end
     
     sleep_ms(100)
