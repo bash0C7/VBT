@@ -179,14 +179,14 @@ def copy_source_components
       FileUtils.cp_r("#{source_dir}/.", target_dir)
       puts "Copied src_components contents to #{target_dir}"
       
-      # Remove subdirectories in components/R2P2-ESP32/storage/home but keep files
+      # Remove only dot directories and vendor directories in components/R2P2-ESP32/storage/home
       home_dir = File.join(target_dir, 'R2P2-ESP32', 'storage', 'home')
       if Dir.exist?(home_dir)
         Dir.foreach(home_dir) do |item|
           next if item == '.' || item == '..'
           
           item_path = File.join(home_dir, item)
-          if File.directory?(item_path)
+          if File.directory?(item_path) && (item.start_with?('.') || item == 'vendor')
             FileUtils.rm_rf(item_path)
             puts "Removed directory: #{item_path}"
           end
