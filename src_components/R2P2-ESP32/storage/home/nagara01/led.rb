@@ -1,4 +1,3 @@
-#load '/home/nagara01/nagara_led.rb'
 
 require 'ws2812'
 require 'i2c'
@@ -15,6 +14,7 @@ def chika(cnt, pin)
   frame = 0
   spd = 0
   str = 50
+  a = { x: 0.0, y: 0.0, z: 0.0 }  # 初期値設定
   
   # 整数演算用の定数 (10000倍スケール)
   pi_x10000 = 31416        # π * 10000
@@ -23,7 +23,7 @@ def chika(cnt, pin)
   
   loop do
     frame += 1
-    if frame % 10 == 0  # センサー読み取り頻度を下げる
+    if frame % 5 == 0  # センサー読み取り頻度を下げる
       a = mpu.acceleration
       spd = (a[:x] * 100).to_i
       str = (a[:y].abs * 100).to_i
@@ -43,15 +43,33 @@ def chika(cnt, pin)
       # 正規化 (-π/2 to π/2 → -15708 to 15708)
       val = val > 15708 ? 15708 : (val < -15708 ? -15708 : val)
       
-      # RGB計算 (整数のみ)
-      r_base = (val + 15708) * str / 31416
-      r = r_base > 255 ? 255 : (r_base < 0 ? 0 : r_base)
+      # X軸の値で色を決定（左右の動き）
+      x_val = (a[:x] * 1000).to_i  # X軸値を拡大
       
-      g_base = (-val + 15708) * str / 31416
-      g = g_base > 255 ? 255 : (g_base < 0 ? 0 : g_base)
+      # 加速度の大きさで輝度調整
+      accel_magnitude = (a[:x].abs + a[:y].abs + a[:z].abs) * 1000
+      if accel_magnitude > 2000  # 極めて高い加速度
+        max_brightness = 128  # 255 * 0.5
+      else
+        max_brightness = 51   # 255 * 0.2
+      end
       
-      b_base = 150 + val / 314
-      b = b_base > 255 ? 255 : (b_base < 0 ? 0 : b_base)
+      if x_val < -200
+        # 左に傾ける：赤
+        r = max_brightness
+        g = 0
+        b = 0
+      elsif x_val > 200
+        # 右に傾ける：青
+        r = 0
+        g = 0
+        b = max_brightness
+      else
+        # 中央：緑
+        r = 0
+        g = max_brightness
+        b = 0
+      end
       
       colors[i] = [r, g, b]
     end
@@ -59,7 +77,7 @@ def chika(cnt, pin)
     led.show_rgb(*colors)
     off = (off + 2000 + spd * 10) % pi2_x10000
     
-    sleep(0.1)  # 間隔を長くしてCPU負荷軽減
+    sleep_ms(50)  # 間隔を長くしてCPU負荷軽減
   end
 end
 
