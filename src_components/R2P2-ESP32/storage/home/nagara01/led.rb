@@ -4,7 +4,7 @@ require 'ws2812'
 require 'i2c'
 require 'mpu6886'
 
-def chika(cnt, pin = 32)
+def chika(cnt, pin)
   led = WS2812.new(RMTDriver.new(pin))
   mpu = MPU6886.new(I2C.new(unit: :ESP32_I2C0, frequency: 100_000, sda_pin: 25, scl_pin: 21))
   mpu.accel_range = MPU6886::ACCEL_RANGE_4G
@@ -63,4 +63,8 @@ def chika(cnt, pin = 32)
   end
 end
 
-chika(25, 27)
+arg_cnt = ARGV[0] || 25
+puts arg_cnt
+arg_pin = ARGV[1] || 27
+puts arg_pin
+chika(arg_cnt.to_i, arg_pin.to_i)
