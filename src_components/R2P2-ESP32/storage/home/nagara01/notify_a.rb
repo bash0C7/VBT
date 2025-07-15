@@ -6,8 +6,9 @@ def chika_animation(cnt, pin)
   uart = UART.new(unit: :ESP32_UART0, baudrate: 115200)
   
   # メモリ効率化：色配列を一度だけ確保
-  colors = Array.new(cnt) { [0, 0, 0] }
-  
+  colors = Array.new(cnt)
+  cnt.times { |i| colors[i] = [0, 0, 0] }
+
   # フラット化：ネストを避ける状態管理
   animation_state = :idle
   animation_frame = 0
