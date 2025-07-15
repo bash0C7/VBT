@@ -82,7 +82,7 @@ def chika_animation(cnt, pin)
     end
     
     # 固定間隔でCPU負荷軽減
-    sleep_ms(40)
+    sleep_ms(100)
   end
 end
 
