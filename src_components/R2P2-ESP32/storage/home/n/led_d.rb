@@ -28,45 +28,49 @@ def chika(cnt, pin)
       distance = new_distance if new_distance > 0
     end
     
-    # 距離に基づく色計算とLED点灯数制御
+    # 距離に基づく色計算と輝度制御
     if distance <= 0
       # エラー時は微弱な白色
-      r, g, b = 2, 2, 2  # 20%輝度
-      led_count = cnt
+      base_r, base_g, base_b = 2, 2, 2
     else
-      # 距離による色分け
-      if distance <= 200
-        # 20cm以下: 緑
-        r, g, b = 0, 51, 0  # 255 * 0.2
-      elsif distance <= 500
-        # 50cm以下: 黄
-        r, g, b = 51, 51, 0
-      elsif distance <= 800
-        # 80cm以下: 青
-        r, g, b = 0, 0, 51
-      elsif distance <= 1000
-        # 1m以下: 赤
-        r, g, b = 51, 0, 0
-      else
-        # 1m超: 赤で点灯数減少
-        r, g, b = 51, 0, 0
+      # 25cm刻みで色決定
+      zone = (distance / 250).to_i  # 0, 1, 2, 3...
+      
+      case zone
+      when 0  # 0-25cm: 緑
+        base_r, base_g, base_b = 0, 51, 0
+      when 1  # 25-50cm: 黄緑
+        base_r, base_g, base_b = 25, 51, 0
+      when 2  # 50-75cm: 黄
+        base_r, base_g, base_b = 51, 51, 0
+      when 3  # 75-100cm: オレンジ
+        base_r, base_g, base_b = 51, 25, 0
+      when 4  # 100-125cm: 赤
+        base_r, base_g, base_b = 51, 0, 0
+      when 5  # 125-150cm: 紫
+        base_r, base_g, base_b = 51, 0, 25
+      when 6  # 150-175cm: 青紫
+        base_r, base_g, base_b = 25, 0, 51
+      when 7  # 175-200cm: 青
+        base_r, base_g, base_b = 0, 0, 51
+      else    # 200cm超: 水色
+        base_r, base_g, base_b = 0, 25, 51
       end
       
-      # 1m超過時の点灯数制御
-      if distance > 1000
-        excess_cm = (distance - 1000) / 10  # 1mを超えた10cm単位
-        led_count = [cnt - excess_cm, 1].max  # 最低1個は点灯
-      else
-        led_count = cnt
-      end
+      # 25cm区間内での1cm刻み輝度調整
+      cm_in_zone = distance % 250  # 区間内の位置(0-249)
+      brightness_ratio = [1.0 - (cm_in_zone / 250.0) * 0.8, 0.2].max  # 100%→20%
     end
     
-    # LEDの設定
+    # 全LEDに同じ色・輝度設定
     cnt.times do |i|
-      if i < led_count
-        colors[i] = [r, g, b]
+      if distance <= 0
+        colors[i] = [base_r, base_g, base_b]
       else
-        colors[i] = [0, 0, 0]  # 消灯
+        r = (base_r * brightness_ratio).to_i
+        g = (base_g * brightness_ratio).to_i
+        b = (base_b * brightness_ratio).to_i
+        colors[i] = [r, g, b]
       end
     end
     
