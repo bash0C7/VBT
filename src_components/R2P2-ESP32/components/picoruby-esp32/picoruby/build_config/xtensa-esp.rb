@@ -34,5 +34,6 @@ MRuby::CrossBuild.new("esp32") do |conf|
   conf.gem core: "picoruby-mbedtls"
   conf.gem github: 'bash0C7/picoruby-mpu6886', branch: 'main'
   conf.gem github: 'ksbmyk/picoruby-ws2812', branch: 'main'
+  conf.gem '/Users/bash/src/picoruby-vl43l0x'
   conf.picoruby(alloc_libc: false)
 end
