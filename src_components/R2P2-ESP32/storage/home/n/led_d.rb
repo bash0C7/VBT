@@ -25,35 +25,49 @@ def chika(cnt, pin)
     if frame % 5 == 0
       new_distance = sensor.read_distance
       puts new_distance
-      distance = new_distance if new_distance > 0  # エラー時は前回値保持
+      distance = new_distance if new_distance > 0
     end
     
-    # 距離に基づく色計算
+    # 距離に基づく色計算とLED点灯数制御
     if distance <= 0
       # エラー時は微弱な白色
-      r, g, b = 10, 10, 10
+      r, g, b = 2, 2, 2  # 20%輝度
+      led_count = cnt
     else
-      # 2m(2000mm)を最大として正規化
-      normalized = [distance / 2000.0, 1.0].min
-      
-      if normalized <= 0.5
-        # 近距離 (0-1000mm): Green → Blue
-        ratio = normalized * 2.0
-        r = 0
-        g = (255 * (1.0 - ratio)).to_i
-        b = (255 * ratio).to_i
+      # 距離による色分け
+      if distance <= 200
+        # 20cm以下: 緑
+        r, g, b = 0, 51, 0  # 255 * 0.2
+      elsif distance <= 500
+        # 50cm以下: 黄
+        r, g, b = 51, 51, 0
+      elsif distance <= 800
+        # 80cm以下: 青
+        r, g, b = 0, 0, 51
+      elsif distance <= 1000
+        # 1m以下: 赤
+        r, g, b = 51, 0, 0
       else
-        # 遠距離 (1000-2000mm): Blue → Red  
-        ratio = (normalized - 0.5) * 2.0
-        r = (255 * ratio).to_i
-        g = 0
-        b = (255 * (1.0 - ratio)).to_i
+        # 1m超: 赤で点灯数減少
+        r, g, b = 51, 0, 0
+      end
+      
+      # 1m超過時の点灯数制御
+      if distance > 1000
+        excess_cm = (distance - 1000) / 10  # 1mを超えた10cm単位
+        led_count = [cnt - excess_cm, 1].max  # 最低1個は点灯
+      else
+        led_count = cnt
       end
     end
     
-    # 全LEDに同じ色を設定
+    # LEDの設定
     cnt.times do |i|
-      colors[i] = [r, g, b]
+      if i < led_count
+        colors[i] = [r, g, b]
+      else
+        colors[i] = [0, 0, 0]  # 消灯
+      end
     end
     
     led.show_rgb(*colors)
