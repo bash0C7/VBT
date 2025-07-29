@@ -13,7 +13,8 @@ led = WS2812.new(RMTDriver.new(27))
 colors = Array.new(25) { [0, 0, 0] }
 
 # MIDI変数
-note_leds = Array.new(25, 0)  # 各LEDの輝度
+note_leds = Array.new(25, 0)
+midi_bytes = []
 
 loop do
   # MIDI受信・転送
@@ -21,12 +22,48 @@ loop do
   if data && data.length > 0
     unit_uart.write(data)
     
-    # シンプルなNote On検出（0x90以降の3バイト目がベロシティ）
     data.each_byte do |byte|
-      if byte >= 0x90 && byte <= 0x9F
-        puts "Note On detected"
-        # とりあえず中央のLEDを光らせる
-        note_leds[12] = 200
+      midi_bytes.push(byte)
+      
+      # 3バイト溜まったらNote Onチェック
+      if midi_bytes.length >= 3
+        status = midi_bytes[-3]
+        note = midi_bytes[-2]
+        velocity = midi_bytes[-1]
+        
+        if status >= 0x90 && status <= 0x9F && velocity > 0
+          # 光る場所：ノート番号を25で割った余り
+          led_pos = note % 25
+          
+          # 輝度：ベロシティ * 2（最大255）
+          brightness = velocity * 2
+          brightness = brightness > 255 ? 255 : brightness
+          
+          # 色：オクターブ（ノート/12）で決定
+          octave = note / 12
+          case octave % 6
+          when 0  # 赤
+            colors[led_pos] = [brightness, 0, 0]
+          when 1  # 黄
+            colors[led_pos] = [brightness, brightness / 2, 0]
+          when 2  # 緑
+            colors[led_pos] = [0, brightness, 0]
+          when 3  # シアン
+            colors[led_pos] = [0, brightness / 2, brightness]
+          when 4  # 青
+            colors[led_pos] = [0, 0, brightness]
+          when 5  # マゼンタ
+            colors[led_pos] = [brightness / 2, 0, brightness]
+          end
+          
+          note_leds[led_pos] = brightness
+          puts "Note: #{note}, LED: #{led_pos}, Oct: #{octave}, Vel: #{velocity}"
+        end
+        
+        # バッファ制限
+        if midi_bytes.length > 10
+          midi_bytes.shift
+        end
       end
     end
   end
@@ -34,8 +71,7 @@ loop do
   # LED更新と減衰
   25.times do |i|
     if note_leds[i] > 0
-      brightness = note_leds[i]
-      colors[i] = [brightness, brightness / 2, 0]  # 黄色系
+      # 減衰処理
       note_leds[i] -= 5
       note_leds[i] = 0 if note_leds[i] < 0
     else
