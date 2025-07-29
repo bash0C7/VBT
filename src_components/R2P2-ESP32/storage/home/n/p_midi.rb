@@ -13,9 +13,10 @@ led = WS2812.new(RMTDriver.new(27))
 colors = Array.new(25) { [0, 0, 0] }
 
 # MIDI変数
-midi_buf = [0, 0, 0]
-buf_idx = 0
-led_brightness = 0
+midi_state = 0  # 0=待機, 1=ノート受信, 2=ベロシティ受信
+midi_status = 0
+midi_note = 0
+note_leds = Array.new(25, 0)  # 各LEDの輝度
 
 loop do
   # MIDI受信・転送
@@ -24,30 +25,41 @@ loop do
     unit_uart.write(data)
     
     data.each_byte do |byte|
-      midi_buf[buf_idx] = byte
-      buf_idx = (buf_idx + 1) % 3
-      
-      # Note On検出 (0x90-0x9F, velocity > 0)
-      if midi_buf[0] >= 0x90 && midi_buf[0] <= 0x9F && midi_buf[2] > 0
-        led_brightness = midi_buf[2] * 2
-        led_brightness = led_brightness > 255 ? 255 : led_brightness
-        puts "Note: #{midi_buf[1]}, Vel: #{midi_buf[2]}"
+      if byte >= 0x80  # ステータスバイト
+        if byte >= 0x90 && byte <= 0x9F  # Note On
+          midi_status = byte
+          midi_state = 1
+        else
+          midi_state = 0
+        end
+      else  # データバイト
+        if midi_state == 1  # ノート受信
+          midi_note = byte
+          midi_state = 2
+        elsif midi_state == 2  # ベロシティ受信
+          velocity = byte
+          if velocity > 0  # Note On
+            led_pos = midi_note % 25
+            note_leds[led_pos] = velocity * 2
+            note_leds[led_pos] = note_leds[led_pos] > 255 ? 255 : note_leds[led_pos]
+            puts "Note: #{midi_note}, LED: #{led_pos}, Vel: #{velocity}"
+          end
+          midi_state = 0
+        end
       end
     end
   end
   
-  # LED更新
+  # LED更新と減衰
   25.times do |i|
-    if led_brightness > 0
-      colors[i] = [led_brightness, 0, led_brightness / 2]
+    if note_leds[i] > 0
+      brightness = note_leds[i]
+      colors[i] = [brightness, brightness / 2, 0]  # 黄色系
+      note_leds[i] -= 3
+      note_leds[i] = 0 if note_leds[i] < 0
     else
       colors[i] = [0, 0, 0]
     end
-  end
-  
-  if led_brightness > 0
-    led_brightness -= 5
-    led_brightness = 0 if led_brightness < 0
   end
   
   led.show_rgb(*colors)
