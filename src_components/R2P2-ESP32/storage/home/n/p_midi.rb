@@ -41,22 +41,49 @@ loop do
           
           # 色：オクターブ（ノート/12）で決定
           octave = note / 12
+          r = 0
+          g = 0
+          b = 0
           case octave % 6
           when 0  # 赤
-            colors[led_pos] = [brightness, 0, 0]
+            r = brightness
           when 1  # 黄
-            colors[led_pos] = [brightness, brightness / 2, 0]
+            r = brightness
+            g = brightness / 2
           when 2  # 緑
-            colors[led_pos] = [0, brightness, 0]
+            g = brightness
           when 3  # シアン
-            colors[led_pos] = [0, brightness / 2, brightness]
+            g = brightness / 2
+            b = brightness
           when 4  # 青
-            colors[led_pos] = [0, 0, brightness]
+            b = brightness
           when 5  # マゼンタ
-            colors[led_pos] = [brightness / 2, 0, brightness]
+            r = brightness / 2
+            b = brightness
           end
           
+          # メインLED
+          colors[led_pos] = [r, g, b]
           note_leds[led_pos] = brightness
+          
+          # 周囲LEDに弱い光（簡単版）
+          weak = brightness / 4
+          weak_r = r / 4
+          weak_g = g / 4
+          weak_b = b / 4
+          
+          # 隣接4方向
+          neighbors = []
+          neighbors.push(led_pos - 5) if led_pos >= 5      # 上
+          neighbors.push(led_pos + 5) if led_pos < 20      # 下
+          neighbors.push(led_pos - 1) if led_pos % 5 != 0  # 左
+          neighbors.push(led_pos + 1) if led_pos % 5 != 4  # 右
+          
+          neighbors.each do |pos|
+            colors[pos] = [weak_r, weak_g, weak_b]
+            note_leds[pos] = weak
+          end
+          
           puts "Note: #{note}, LED: #{led_pos}, Oct: #{octave}, Vel: #{velocity}"
         end
         
