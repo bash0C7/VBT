@@ -1,1 +1,0 @@
-Shell.new.start(:irb)

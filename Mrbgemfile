@@ -4,7 +4,7 @@ mrbgems do |conf|
   # Edit to add custom mrbgems for your application
 
   # Core utilities
-  conf.gem core: "mruby-print"
+  #conf.gem core: "mruby-print"
 
   # Add your custom mrbgems here:
   # conf.gem "mrbgems/my-sensor"
@@ -13,4 +13,7 @@ mrbgems do |conf|
 
   # Device-specific application mrbgem (auto-generated)
   conf.gem "mrbgems/picoruby-applib"
+  conf.gem github: 'bash0C7/picoruby-mpu6886', branch: 'main'
+  conf.gem github: 'ksbmyk/picoruby-ws2812', branch: 'main'
+  conf.gem github: 'bash0C7/picoruby-vl53l0x', branch: 'main'
 end
