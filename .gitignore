@@ -1,16 +1,31 @@
-/components/
+# ptrk project directories
+.cache/
+build/
+.ptrk_env/*/
+# But keep .gitkeep files for directory structure
+!.ptrk_env/.gitkeep
+!.gitkeep
+
+# Version cache and build artifacts
+*.o
+*.a
+*.so
+
+# IDE and editor
+.vscode/
+.idea/
 *.swp
 *.swo
 *~
-.vscode/
-.idea/
-**/.DS_Store
+.DS_Store
 
-# Bundler (recursive)
-**/vendor/
-**/.bundle/
-**/Gemfile.lock
+# Ruby
+.ruby-version
+.bundle/
+vendor/bundle/
+*.gem
+*.gemspec.lock
 
-# Ruby artifacts (recursive)
-**/*.gem
-**/*.rbc
+# System
+*.tmp
+.env.local
