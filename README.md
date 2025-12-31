@@ -1,4 +1,4 @@
-# VBT
+# vbt
 
 ATOM Matrixを使用してウェイトトレーニングの速度と加速度をリアルタイムで測定・表示する装置を実現します
 - Velocity Based Training（VBT）手法を実装し、トレーニングの質を数値化・可視化します。
@@ -9,97 +9,151 @@ ATOM Matrixを使用してウェイトトレーニングの速度と加速度を
 詳細な仕様は以下docを参照してください
 https://docs.google.com/document/d/1oe2xu4LA9d-4aYqymDxY2VGFpKa_j8ngO9hMCUcYLu4/edit?tab=t.0#heading=h.xutg4kgqj5vc
 
-## VBT.ino
+A PicoRuby application for ESP32 development using the `picotorokko` (ptrk) build system.
 
-PoCの実装です
+**Created**: 2025-12-31 12:05:15
+**Author**: bash0C7
+
+## Quick Start
+
+### 1. Setup Environment
+
+First, fetch the latest repository versions automatically:
+
+```bash
+ptrk env set --latest
+```
+
+Or, create an environment with specific repository commits:
+
+```bash
+ptrk env set main --commit <R2P2-ESP32-hash>
+```
+
+Optionally, specify different commits for picoruby-esp32 and picoruby:
+
+```bash
+ptrk env set main \
+  --commit <R2P2-hash> \
+  --esp32-commit <picoruby-esp32-hash> \
+  --picoruby-commit <picoruby-hash>
+```
+
+### 2. Build Application
+
+```bash
+ptrk device build
+```
+
+This clones repositories, applies patches, and builds firmware for your application.
+
+### 3. Flash to Device
+
+```bash
+ptrk device flash
+```
+
+### 4. Monitor Serial Output
+
+```bash
+ptrk device monitor
+```
 
 ## Project Structure
 
-```
-VBT/
-├── Rakefile                    # Build automation tasks
-├── VBT.ino                    # PoC VBT Arduino sketch for ATOM Matrix
-├── src_components/            # Source ESP-IDF components
-├── components/                # ESP-IDF components (auto-generated, git-ignored)
-│   └── R2P2-ESP32/           # Cloned R2P2-ESP32 repository
-└── README.md                  # This file
-```
+- **`storage/home/`** — Your PicoRuby application code (git-managed)
+- **`patch/`** — Customizations to R2P2-ESP32 and dependencies (git-managed)
+- **`.cache/`** — Immutable repository snapshots (git-ignored)
+- **`build/`** — Active build working directory (git-ignored)
+- **`.ptrk_env/`** — Environment metadata (git-ignored)
 
-## Path Roles
+## Documentation
 
-- **Project Root**: Contains the main Arduino sketch and project configuration
-- **src_components/**: Source directory for ESP-IDF components that gets copied to the build environment
-- **components/**: Build-time directory containing external ESP-IDF components (auto-generated, not tracked in git)
-- **components/R2P2-ESP32/**: Cloned repository providing the build environment for PicoRuby on ESP32
+- **`SPEC.md`** — Complete specification of ptrk commands (in picotorokko gem)
+- **`CLAUDE.md`** — Development guidelines and conventions
+- **[picotorokko README](https://github.com/picoruby/picotorokko)** — Gem documentation and examples
 
-## Build Tasks
+## Common Tasks
 
-Use Rake to manage the build process. All tasks automatically set up the required environment variables and ESP-IDF environment.
+### List Defined Environments
 
-### Available Tasks
-
-View all available tasks:
 ```bash
-rake -T
+ptrk env list
 ```
 
-### Task Descriptions
+### Show Current Environment Details
 
-- **`rake setup`**: Initial project setup
-  - Creates `components/` directory
-  - Clones R2P2-ESP32 repository
-  - Copies `src_components/` contents to build location
-  - Performs full clean build
-
-- **`rake update`**: Update project dependencies
-  - Cleans git changes in R2P2-ESP32
-  - Pulls latest changes with submodules
-  - Re-copies `src_components/` contents
-  - Performs full clean build
-
-- **`rake cleanbuild`**: Clean build from scratch
-  - Runs `idf.py fullclean`
-  - Executes `rake setup_esp32`
-  - Builds the project
-
-- **`rake buildall`**: Build with setup
-  - Executes `rake setup_esp32`
-  - Builds the project
-
-- **`rake build`**: Quick build (default)
-  - Builds the project without cleanup or setup
-
-### Usage Examples
-
-Initial setup (first time):
 ```bash
-rake setup
+ptrk env show main
 ```
 
-Regular development build:
+### Export Changes as Patches
+
+After editing files in `build/current/`, export changes:
+
 ```bash
-rake build
+ptrk env patch_export main
 ```
 
-Update dependencies:
+Then commit:
+
 ```bash
-rake update
+git add patch/ storage/home/
+git commit -m "Update patches and application code"
 ```
 
-Clean rebuild:
+### Switch Between Environments
+
+First, create the new environment:
+
 ```bash
-rake cleanbuild
+ptrk env set development --commit <hash>
 ```
 
-## Environment Requirements
+Then, rebuild with the new environment:
 
-The Rakefile automatically configures the following environment:
-- OpenSSL paths for Homebrew installation
-- ESP-IDF environment variables
-- GRPC build system configuration
-- ESP32 baud rate settings
+```bash
+ptrk device build
+```
 
-Make sure you have:
-- ESP-IDF installed in `$HOME/esp/esp-idf/`
-- Homebrew with OpenSSL installed
-- Git with submodule support
+## Troubleshooting
+
+For detailed troubleshooting and advanced usage, see the picotorokko gem documentation.
+
+### Environment Not Found
+
+Check available environments:
+
+```bash
+ptrk env list
+```
+
+Create a new one:
+
+```bash
+ptrk env set myenv --commit <hash>
+```
+
+### Build Fails
+
+Try rebuilding from scratch:
+
+```bash
+ptrk device build
+```
+
+If the issue persists, verify the environment is correctly set:
+
+```bash
+ptrk env show main
+```
+
+## Support
+
+For issues with the picotorokko gem, see:
+- GitHub: https://github.com/picoruby/picotorokko/issues
+- Documentation: https://github.com/picoruby/picotorokko#readme
+
+For PicoRuby and R2P2-ESP32 issues, see:
+- PicoRuby: https://github.com/picoruby/picoruby
+- R2P2-ESP32: https://github.com/picoruby/R2P2-ESP32

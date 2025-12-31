@@ -1,0 +1,45 @@
+# RuboCop configuration for PicoRuby application development
+# This file is auto-generated during project initialization
+
+AllCops:
+  TargetRubyVersion: 3.3
+  NewCops: enable
+  Exclude:
+    - "vendor/**/*"
+    - ".ptrk_env/**/*"
+    - ".cache/**/*"
+    - "patch/**/*"
+
+# PicoRuby applications prioritize memory efficiency
+Metrics/MethodLength:
+  Max: 20
+  Exclude:
+    - "test/**/*"
+
+Metrics/ClassLength:
+  Max: 150
+  Exclude:
+    - "test/**/*"
+
+Metrics/AbcSize:
+  Max: 20
+
+# Test files allow longer blocks for Dir.mktmpdir and setup
+Metrics/BlockLength:
+  Exclude:
+    - "test/**/*"
+
+# PicoRuby uses snake_case for constants by convention
+Naming/ConstantName:
+  Enabled: false
+
+# Allow Japanese comments for device development documentation
+Style/AsciiComments:
+  Enabled: false
+
+# String style for PicoRuby
+Style/StringLiterals:
+  EnforcedStyle: double_quotes
+
+Style/StringLiteralsInInterpolation:
+  EnforcedStyle: double_quotes

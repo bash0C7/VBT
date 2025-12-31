@@ -1,0 +1,16 @@
+mrbgems do |conf|
+  # Configure mrbgems for your PicoRuby application
+  # This file is auto-generated during project initialization
+  # Edit to add custom mrbgems for your application
+
+  # Core utilities
+  conf.gem core: "mruby-print"
+
+  # Add your custom mrbgems here:
+  # conf.gem "mrbgems/my-sensor"
+  # conf.gem github: "user/mrbgem-name"
+  # conf.gem :core => "sprintf"
+
+  # Device-specific application mrbgem (auto-generated)
+  conf.gem "mrbgems/picoruby-applib"
+end
